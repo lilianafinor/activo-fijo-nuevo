@@ -22,6 +22,19 @@ class in_ingreso(models.Model):
     glosa = models.CharField(max_length=72, null=True, blank=True)
     estado = models.CharField(max_length=1, null=True, blank=True)
 
+
+    acta_recep = models.CharField(max_length=20, null=True, blank=True)
+    fecha_recep = models.DateField(null=True, blank=True)
+    nro_factura = models.IntegerField(null=True, blank=True)
+    fecha_factura = models.DateField(null=True, blank=True)
+    nro_egreso = models.IntegerField(null=True, blank=True)
+    fecha_egreso = models.DateField(null=True, blank=True)
+    tipo_emp_recep = models.IntegerField(null=True, blank=True)
+    cod_emp_recep = models.IntegerField(null=True, blank=True)
+    tipo_emp_dest = models.IntegerField(null=True, blank=True)
+    cod_emp_dest = models.IntegerField(null=True, blank=True)
+    
+
     class Meta:
         db_table = 'in_ingreso'
         managed = True

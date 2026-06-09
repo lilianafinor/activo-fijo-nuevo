@@ -30,7 +30,6 @@ from .types import (
 
 
 def validar_y_calcular_nivel(codigo, cod_padre_id, model_class):
-    # Regex para validar formato: debe ser XX, XX-XX o XX-XX-XX (donde cada X es alfanumérico)
     if not re.match(r'^[a-zA-Z0-9]{2}(-[a-zA-Z0-9]{2}){0,2}$', codigo):
         raise Exception("Formato de código inválido. Debe tener la estructura XX, XX-XX o XX-XX-XX (cada nivel con 2 caracteres alfanuméricos separados por guiones).")
     
@@ -420,12 +419,10 @@ class EditarGrupo(graphene.Mutation):
     def mutate(root, info, cod_grupo, cod_hijo=None, des_grupo=None, cod_padre=None, cod_tipo=None, vida_util_default=None, codigo_contable=None):
         obj = in_grupo.objects.get(pk=cod_grupo)
         
-        # Si cambia el código o el padre, validamos la jerarquía
         if cod_hijo is not None or cod_padre is not None:
             final_codigo = cod_hijo if cod_hijo is not None else obj.cod_hijo
             final_padre_id = cod_padre if cod_padre is not None else obj.cod_padre_id
             
-            # Si el código cambia, validamos que no tenga dependencias activas
             if cod_hijo is not None and cod_hijo != obj.cod_hijo:
                 if obj.hijos.filter(a_b='A').exists():
                     raise Exception("No se puede modificar el código de un grupo que tiene subgrupos activos dependientes.")
@@ -496,12 +493,10 @@ class EditarOficina(graphene.Mutation):
                tipo_act=None, cod_activ=None):
         obj = in_oficina.objects.get(pk=cod_ofic)
         
-        # Si cambia el código o el padre, validamos la jerarquía
         if cod_dpto is not None or cod_padre is not None:
             final_codigo = cod_dpto if cod_dpto is not None else obj.cod_dpto
             final_padre_id = cod_padre if cod_padre is not None else obj.cod_padre_id
             
-            # Si el código cambia, validamos que no tenga dependencias activas
             if cod_dpto is not None and cod_dpto != obj.cod_dpto:
                 if obj.hijos.filter(a_b='A').exists():
                     raise Exception("No se puede modificar el código de una oficina que tiene suboficinas activas dependientes.")
@@ -840,19 +835,30 @@ class AnularOrdenCompra(graphene.Mutation):
 
 class CrearIngreso(graphene.Mutation):
     class Arguments:
-        gestion       = graphene.Int()
-        tipo_ingreso  = graphene.Int()
-        cod_prov      = graphene.Int()
-        cod_ofic_dest = graphene.Int()
-        nro_compra    = graphene.Int()
-        glosa         = graphene.String()
+        gestion        = graphene.Int()
+        tipo_ingreso   = graphene.Int()
+        cod_prov       = graphene.Int()
+        cod_ofic_dest  = graphene.Int()
+        nro_compra     = graphene.Int()
+        glosa          = graphene.String()
+        acta_recep     = graphene.String()
+        fecha_recep    = graphene.Date()
+        nro_factura    = graphene.Int()
+        fecha_factura  = graphene.Date()
+        nro_egreso     = graphene.Int()
+        fecha_egreso   = graphene.Date()
+        tipo_emp_recep = graphene.Int()
+        cod_emp_recep  = graphene.Int()
+        tipo_emp_dest  = graphene.Int()
+        cod_emp_dest   = graphene.Int()
+        estado         = graphene.String()
     ingreso = graphene.Field(InIngresoType)
-    def mutate(root, info, gestion=None, tipo_ingreso=None, cod_prov=None,
-               cod_ofic_dest=None, nro_compra=None, glosa=None):
+    def mutate(root, info, estado='E', cod_prov=None, cod_ofic_dest=None, **kwargs):
         obj = in_ingreso.objects.create(
-            gestion=gestion, tipo_ingreso=tipo_ingreso, cod_prov_id=cod_prov,
-            cod_ofic_dest_id=cod_ofic_dest, nro_compra=nro_compra,
-            glosa=glosa, estado='E'
+            estado=estado,
+            cod_prov_id=cod_prov,
+            cod_ofic_dest_id=cod_ofic_dest,
+            **kwargs
         )
         return CrearIngreso(ingreso=obj)
 
@@ -1078,7 +1084,7 @@ class AgregarDetRevalConDepreciacion(graphene.Mutation):
         nro_activo    = graphene.Int(required=True)
         vida_util_mes = graphene.Int(required=True)
         vida_util_ano = graphene.Int(required=True)
-        costo         = graphene.Float(required=True)
+        costo         = graphene.Decimal(required=True)
         fecha_reval   = graphene.Date(required=True)
         nro_serie     = graphene.Int(required=True)
 
@@ -1396,7 +1402,12 @@ class AgregarActivoTransferencia(graphene.Mutation):
     det_tranf = graphene.Field(InDetTranfType)
     def mutate(root, info, cod_transf, nro_activo, cantidad=1):
         obj = in_det_tranf.objects.create(
-            cod_transf_id=cod_transf, nro_activo_id=nro_activo, cantidad=cantidad
+            cod_transf_id=cod_transf,
+            nro_activo_id=nro_activo,
+            cantidad=cantidad,
+            tipo_trans=0,
+            cod_trans=0,
+            fecha_trans=timezone.now().date()
         )
         return AgregarActivoTransferencia(det_tranf=obj)
 
@@ -1820,5 +1831,3 @@ class Mutation(graphene.ObjectType):
     crear_usuario                = CrearUsuario.Field()
     editar_usuario               = EditarUsuario.Field()
     asignar_rol_permiso_usuario  = AsignarRolPermisoUsuario.Field()
-
-

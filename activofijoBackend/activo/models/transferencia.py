@@ -40,6 +40,9 @@ class in_det_tranf(models.Model):
         db_column='nro_activo'
     )
     cantidad = models.IntegerField()
+    tipo_trans  = models.IntegerField(default=0)
+    cod_trans   = models.IntegerField(default=0)
+    fecha_trans = models.DateField(auto_now_add=True)
 
     class Meta:
         db_table = 'in_det_tranf'

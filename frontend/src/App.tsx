@@ -10,10 +10,44 @@ import Proveedores from './pages/Proveedores';
 import Oficinas from './pages/Oficinas';
 import Grupos from './pages/Grupos';
 import Marcas from './pages/Marcas';
+import Condiciones from './pages/Condiciones';
+import Unidades from './pages/Unidades';
+import Gestiones from './pages/Gestiones';
+import Partes from './pages/Partes';
+import Usuarios from './pages/Usuarios';
+import Roles from './pages/Roles';
+import Tipos from './pages/Tipos';
+import Materiales from './pages/Materiales';
+import Funciones from './pages/Funciones';
+import Estados from './pages/Estados';
+import Adquisiciones from './pages/Adquisiciones';
+import Atributos from './pages/Atributos';
+import Depreciaciones from './pages/Depreciaciones';
+import Login from './pages/Login';
 import './App.css';
 
 function App() {
   const [catalogoOpen, setCatalogoOpen] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('token'));
+  const [userEmail, setUserEmail] = useState(localStorage.getItem('userEmail') || '');
+
+  const handleLoginSuccess = (token: string, email: string) => {
+    localStorage.setItem('token', token);
+    localStorage.setItem('userEmail', email);
+    setUserEmail(email);
+    setIsAuthenticated(true);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('userEmail');
+    setUserEmail('');
+    setIsAuthenticated(false);
+  };
+
+  if (!isAuthenticated) {
+    return <Login onLoginSuccess={handleLoginSuccess} />;
+  }
 
   return (
     <BrowserRouter>
@@ -30,6 +64,10 @@ function App() {
             <li><NavLink to="/transferencias">Transferencias</NavLink></li>
             <li><NavLink to="/revaluos">Revalúos</NavLink></li>
             <li><NavLink to="/bajas">Bajas</NavLink></li>
+            <li><NavLink to="/adquisiciones">Adquisiciones</NavLink></li>
+            <li><NavLink to="/depreciaciones">Depreciaciones</NavLink></li>
+            <li><NavLink to="/usuarios">Usuarios</NavLink></li>
+            <li><NavLink to="/roles">Roles</NavLink></li>
             <li className="dropdown">
               <button className="dropdown-btn" onClick={() => setCatalogoOpen(!catalogoOpen)}>
                 Catálogos ▾
@@ -40,10 +78,23 @@ function App() {
                   <li><NavLink to="/oficinas" onClick={() => setCatalogoOpen(false)}>Oficinas</NavLink></li>
                   <li><NavLink to="/grupos" onClick={() => setCatalogoOpen(false)}>Grupos</NavLink></li>
                   <li><NavLink to="/marcas" onClick={() => setCatalogoOpen(false)}>Marcas</NavLink></li>
+                  <li><NavLink to="/condiciones" onClick={() => setCatalogoOpen(false)}>Condiciones</NavLink></li>
+                  <li><NavLink to="/estados" onClick={() => setCatalogoOpen(false)}>Estados de Activo</NavLink></li>
+                  <li><NavLink to="/unidades" onClick={() => setCatalogoOpen(false)}>Unidades de Medida</NavLink></li>
+                  <li><NavLink to="/gestiones" onClick={() => setCatalogoOpen(false)}>Gestiones</NavLink></li>
+                  <li><NavLink to="/partes" onClick={() => setCatalogoOpen(false)}>Partes / Componentes</NavLink></li>
+                  <li><NavLink to="/atributos" onClick={() => setCatalogoOpen(false)}>Atributos Técnicos</NavLink></li>
+                  <li><NavLink to="/tipos" onClick={() => setCatalogoOpen(false)}>Tipos de Activo</NavLink></li>
+                  <li><NavLink to="/materiales" onClick={() => setCatalogoOpen(false)}>Tipos de Material</NavLink></li>
+                  <li><NavLink to="/funciones" onClick={() => setCatalogoOpen(false)}>Funciones Adm.</NavLink></li>
                 </ul>
               )}
             </li>
           </ul>
+          <div className="navbar-user">
+            <span className="user-email">👤 {userEmail}</span>
+            <button className="logout-btn" onClick={handleLogout}>Cerrar Sesión</button>
+          </div>
         </nav>
         <main className="main-content">
           <Routes>
@@ -58,6 +109,19 @@ function App() {
             <Route path="/oficinas" element={<Oficinas />} />
             <Route path="/grupos" element={<Grupos />} />
             <Route path="/marcas" element={<Marcas />} />
+            <Route path="/condiciones" element={<Condiciones />} />
+            <Route path="/unidades" element={<Unidades />} />
+            <Route path="/gestiones" element={<Gestiones />} />
+            <Route path="/partes" element={<Partes />} />
+            <Route path="/usuarios" element={<Usuarios />} />
+            <Route path="/roles" element={<Roles />} />
+            <Route path="/tipos" element={<Tipos />} />
+            <Route path="/materiales" element={<Materiales />} />
+            <Route path="/funciones" element={<Funciones />} />
+            <Route path="/estados" element={<Estados />} />
+            <Route path="/adquisiciones" element={<Adquisiciones />} />
+            <Route path="/depreciaciones" element={<Depreciaciones />} />
+            <Route path="/atributos" element={<Atributos />} />
           </Routes>
         </main>
       </div>

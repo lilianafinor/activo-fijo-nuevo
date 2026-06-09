@@ -102,9 +102,6 @@ export default function Grupos() {
 
   const tree = data ? buildTree(data.todosGrupos) : [];
 
-  // Grupos disponibles como padre según nivel seleccionado
-  const gruposPadre = data?.todosGrupos?.filter((g: any) => g.nivel < parseInt(form.nivel)) || [];
-
   if (loading) return <div className="loading">Cargando grupos...</div>;
   if (error) return <div className="error">Error: {error.message}</div>;
 

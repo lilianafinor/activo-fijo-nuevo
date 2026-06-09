@@ -127,6 +127,8 @@ class Query(graphene.ObjectType):
     det_revals_por_activo      = graphene.List(InDetRevalType, nro_activo=graphene.Int(required=True))
     det_revals_por_revaluo     = graphene.List(InDetRevalType, cod_reval=graphene.Int(required=True))
     dep_acumulada_por_activo   = graphene.List(InDepAcumuladaType, nro_activo=graphene.Int(required=True))
+    dep_acumulada_por_periodo  = graphene.List(InDepAcumuladaType, gestion=graphene.Int(required=True), periodo=graphene.Int(required=True))
+    ultimas_depreciaciones     = graphene.List(InDepAcumuladaType)
 
     # ── Atributos ───────────────────────────────────────────────
     atributos_por_grupo    = graphene.List(InAtributoType, cod_grupo=graphene.Int(required=True), solo_activos=graphene.Boolean())
@@ -378,6 +380,18 @@ class Query(graphene.ObjectType):
         return in_det_reval.objects.filter(cod_reval_id=cod_reval)
     def resolve_dep_acumulada_por_activo(root, info, nro_activo):
         return in_dep_acumulada.objects.filter(nro_activo_id=nro_activo).order_by('nro_serie')
+    def resolve_dep_acumulada_por_periodo(root, info, gestion, periodo):
+        nro_serie = gestion * 100 + periodo
+        return in_dep_acumulada.objects.filter(nro_serie=nro_serie).select_related('nro_activo')
+    def resolve_ultimas_depreciaciones(root, info):
+        from django.db.models import Max
+        # Get the latest nro_serie per activo
+        latest = in_dep_acumulada.objects.values('nro_activo').annotate(max_serie=Max('nro_serie'))
+        result = []
+        for item in latest:
+            dep = in_dep_acumulada.objects.get(nro_activo_id=item['nro_activo'], nro_serie=item['max_serie'])
+            result.append(dep)
+        return result
 
     # ── Resolvers — Atributos ───────────────────────────────────
     def resolve_atributos_por_grupo(root, info, cod_grupo, solo_activos=True):

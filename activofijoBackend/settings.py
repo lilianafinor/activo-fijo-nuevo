@@ -53,9 +53,9 @@ WSGI_APPLICATION = 'wsgi.application'
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": "activo_fijo_nuevo",
+        "NAME": "activo_fijo",
         "USER": "postgres",
-        "PASSWORD": "123456",
+        "PASSWORD": "Aforo255#2019",
         "HOST": "localhost",
         "PORT": "5432",
     }
@@ -89,3 +89,8 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 CORS_ALLOW_ALL_ORIGINS = True
+
+# Archivos de Medios (Subidas)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+

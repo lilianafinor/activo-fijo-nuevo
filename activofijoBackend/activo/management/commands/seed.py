@@ -311,7 +311,7 @@ class Command(BaseCommand):
         # ============================================================
         usuarios_config = [
             # (correo,                    contraseña,   empleado, rol)
-            ('admin@activo.com',          'admin123',    emp1, admin_rol),
+            ('admin@activo.com',          'admin234',    emp1, admin_rol),
             ('supervisor@activo.com',     'super123',    emp2, supervisor_rol),
             ('operador@activo.com',       'oper123',     emp3, operador_rol),
             ('auxiliar@activo.com',        'aux123',      emp4, auxiliar_rol),
@@ -328,12 +328,13 @@ class Command(BaseCommand):
                     'id_empleado': empleado,
                 }
             )
+            # Siempre forzamos el password del seeder para sincronizar con la BD
+            user.set_password(password)  # bcrypt hash
+            user.save()
             if created:
-                user.set_password(password)  # bcrypt hash
-                user.save()
                 self.stdout.write(f'  + Usuario: {correo} (creado)')
             else:
-                self.stdout.write(f'  = Usuario: {correo} (ya existía)')
+                self.stdout.write(f'  = Usuario: {correo} (actualizado)')
 
             # Asignar todos los in_rol_permiso del rol al usuario
             rp_list = in_rol_permiso.objects.filter(id_rol=rol, estado=True)
@@ -350,6 +351,34 @@ class Command(BaseCommand):
             self.stdout.write(f'    → {rpu_count} permisos nuevos vinculados')
 
         # ============================================================
+        # 6. RESPONSABLES
+        # ============================================================
+        from activo.models import in_responsable
+        responsConfig = [
+            ('1211', emp1, 'A'),
+            ('1221', emp2, 'A'),
+            ('1311', emp3, 'A'),
+            ('1411', emp4, 'A'),
+            ('1511', emp5, 'A'),
+            ('1611', emp6, 'A'),
+            ('1711', emp7, 'A'),
+        ]
+        resp_count = 0
+        for cod_estprog, empleado, tipo_per in responsConfig:
+            _, created = in_responsable.objects.get_or_create(
+                cod_emp=empleado,
+                defaults={
+                    'cod_estprog': cod_estprog,
+                    'tipo_per': tipo_per,
+                    'fecha': date.today(),
+                    'a_b': 'A'
+                }
+            )
+            if created:
+                resp_count += 1
+        self.stdout.write(self.style.SUCCESS(f'  Responsables: {resp_count} creados.'))
+
+        # ============================================================
         # RESUMEN FINAL
         # ============================================================
         self.stdout.write('')
@@ -361,13 +390,14 @@ class Command(BaseCommand):
         self.stdout.write(f'  Rol↔Perm:  {in_rol_permiso.objects.count()}')
         self.stdout.write(f'  Empleados: {in_empleado.objects.count()}')
         self.stdout.write(f'  Usuarios:  {in_usuario.objects.count()}')
+        self.stdout.write(f'  Responsables: {in_responsable.objects.count()}')
         self.stdout.write(f'  RPU:       {in_rol_permiso_usuario.objects.count()}')
         self.stdout.write('')
         self.stdout.write(self.style.WARNING('  Credenciales de acceso:'))
         self.stdout.write('  ┌──────────────────────────────┬────────────┬────────────────┐')
         self.stdout.write('  │ Correo                       │ Contraseña │ Rol            │')
         self.stdout.write('  ├──────────────────────────────┼────────────┼────────────────┤')
-        self.stdout.write('  │ admin@activo.com              │ admin123   │ Administrador  │')
+        self.stdout.write('  │ admin@activo.com              │ admin234   │ Administrador  │')
         self.stdout.write('  │ supervisor@activo.com         │ super123   │ Supervisor     │')
         self.stdout.write('  │ operador@activo.com           │ oper123    │ Operador       │')
         self.stdout.write('  │ auxiliar@activo.com            │ aux123     │ Auxiliar       │')

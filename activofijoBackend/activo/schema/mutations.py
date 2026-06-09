@@ -330,13 +330,16 @@ class EditarRevaluo(graphene.Mutation):
         cod_reval = graphene.Int(required=True)
         documento = graphene.String()
         fecha_fin = graphene.Date()
+        estado    = graphene.String()
     revaluo = graphene.Field(InRevaluoType)
-    def mutate(root, info, cod_reval, documento=None, fecha_fin=None):
+    def mutate(root, info, cod_reval, documento=None, fecha_fin=None, estado=None):
         obj = in_revaluo.objects.get(pk=cod_reval)
         if documento is not None: obj.documento = documento
         if fecha_fin is not None: obj.fecha_fin = fecha_fin
+        if estado is not None: obj.estado = estado
         obj.save()
         return EditarRevaluo(revaluo=obj)
+
 
 class AnularRevaluo(graphene.Mutation):
     class Arguments:
@@ -658,7 +661,7 @@ class CrearSolicitud(graphene.Mutation):
     def mutate(root, info, gestion, cod_estprog, emp_sol, glosa, emp_resp, cod_emp, fecha):
         obj = in_solicitud.objects.create(
             gestion=gestion, cod_estprog=cod_estprog, emp_sol_id=emp_sol,
-            glosa=glosa, emp_resp_id=emp_resp, cod_emp=cod_emp, fecha=fecha, a_b='A'
+            glosa=glosa, emp_resp_id=emp_resp, cod_emp_id=cod_emp, fecha=fecha, a_b='A'
         )
         return CrearSolicitud(solicitud=obj)
 
@@ -686,6 +689,36 @@ class AnularSolicitud(graphene.Mutation):
         obj.a_b = 'B'
         obj.save()
         return AnularSolicitud(solicitud=obj)
+
+class AprobarSolicitud(graphene.Mutation):
+    """Aprueba una solicitud de compra pendiente. Cambia a_b a 'P' (Aprobada)."""
+    class Arguments:
+        nro_sol = graphene.Int(required=True)
+    solicitud = graphene.Field(InSolicitudType)
+    def mutate(root, info, nro_sol):
+        obj = in_solicitud.objects.get(pk=nro_sol)
+        if obj.a_b not in ('A',):
+            raise Exception("Solo se pueden aprobar solicitudes en estado Pendiente.")
+        obj.a_b = 'P'
+        obj.save()
+        return AprobarSolicitud(solicitud=obj)
+
+class RechazarSolicitud(graphene.Mutation):
+    """Rechaza una solicitud de compra pendiente. Cambia a_b a 'R' (Rechazada)."""
+    class Arguments:
+        nro_sol = graphene.Int(required=True)
+        motivo  = graphene.String()
+    solicitud = graphene.Field(InSolicitudType)
+    def mutate(root, info, nro_sol, motivo=None):
+        obj = in_solicitud.objects.get(pk=nro_sol)
+        if obj.a_b not in ('A',):
+            raise Exception("Solo se pueden rechazar solicitudes en estado Pendiente.")
+        obj.a_b = 'R'
+        # Store rejection reason in glosa field (append)
+        if motivo:
+            obj.glosa = f"{obj.glosa} | RECHAZADO: {motivo}"
+        obj.save()
+        return RechazarSolicitud(solicitud=obj)
 
 # ── in_det_sol ─────────────────────────────────────────────────
 class AgregarDetSol(graphene.Mutation):
@@ -1142,6 +1175,84 @@ class AnularDetReval(graphene.Mutation):
         return AnularDetReval(det_reval=obj)
 
 
+class CalcularDepreciacionMasiva(graphene.Mutation):
+    """
+    Calcula y registra la depreciación mensual de TODOS los activos activos
+    que tienen grupo con vida útil definida.
+    Devuelve la cantidad de activos procesados y una lista de errores.
+    """
+    class Arguments:
+        gestion     = graphene.Int(required=True)   # año de la gestión
+        periodo     = graphene.Int(required=True)   # mes (1-12)
+
+    procesados  = graphene.Int()
+    omitidos    = graphene.Int()
+    errores     = graphene.List(graphene.String)
+
+    def mutate(root, info, gestion, periodo):
+        if periodo < 1 or periodo > 12:
+            raise Exception("El periodo debe estar entre 1 y 12")
+
+        activos = in_activo.objects.filter(a_b='A').select_related('cod_grupo')
+        procesados = 0
+        omitidos   = 0
+        errores    = []
+
+        # nro_serie = gestion * 100 + periodo  (ej. 202506)
+        nro_serie = gestion * 100 + periodo
+
+        for activo in activos:
+            try:
+                det_grp = activo.cod_grupo.in_det_grp_set.first()
+                if not det_grp or not det_grp.vida_util_ano or det_grp.vida_util_ano <= 0:
+                    omitidos += 1
+                    continue
+
+                costo = activo.monto
+                if costo is None or costo <= 0:
+                    omitidos += 1
+                    continue
+
+                # Check if depreciation already exists for this period
+                ya_existe = in_dep_acumulada.objects.filter(
+                    nro_activo_id=activo.pk,
+                    nro_serie=nro_serie
+                ).exists()
+                if ya_existe:
+                    omitidos += 1
+                    continue
+
+                vida_total_meses = (det_grp.vida_util_ano * 12) + (det_grp.vida_util_mes or 0)
+                dep_mensual = Decimal(str(costo)) / Decimal(str(vida_total_meses))
+
+                # Get previous accumulated depreciation
+                anterior = in_dep_acumulada.objects.filter(
+                    nro_activo_id=activo.pk
+                ).order_by('-nro_serie').first()
+                acum_ant = anterior.acumulada if anterior else Decimal('0')
+                nueva_acum = acum_ant + dep_mensual
+                valor_actual = max(Decimal(str(costo)) - nueva_acum, Decimal('0'))
+
+                in_dep_acumulada.objects.create(
+                    nro_serie=nro_serie,
+                    nro_activo_id=activo.pk,
+                    depresiacion=round(dep_mensual, 2),
+                    acumulada=round(nueva_acum, 2),
+                    valor_actual=round(valor_actual, 2),
+                    valor_revaluo=costo
+                )
+                procesados += 1
+
+            except Exception as e:
+                errores.append(f"Activo {activo.cod_activo}: {str(e)}")
+
+        return CalcularDepreciacionMasiva(
+            procesados=procesados,
+            omitidos=omitidos,
+            errores=errores
+        )
+
+
 # ═══════════════════════════════════════════════════════════════
 # MUTATIONS — ATRIBUTOS
 # ═══════════════════════════════════════════════════════════════
@@ -1448,6 +1559,24 @@ class TokenAuth(graphene.Mutation):
             raise Exception("Credenciales incorrectas")
 
         from .auth_helper import generate_token
+
+        if user.two_factor_enabled:
+            # Si no tiene secret, lo generamos para la prueba
+            if not user.otp_secret:
+                import pyotp
+                user.otp_secret = pyotp.random_base32()
+                user.save()
+            
+            temp_token_str = generate_token(user)
+            return TokenAuth(
+                token=None,
+                payload="{}",
+                refresh_expires_in=3600,
+                requires2fa=True,
+                temp_token=temp_token_str,
+                user_email=user.correo
+            )
+
         token_str = generate_token(user)
         return TokenAuth(
             token=token_str,
@@ -1457,6 +1586,41 @@ class TokenAuth(graphene.Mutation):
             temp_token=None,
             user_email=user.correo
         )
+
+
+class VerifyOtp(graphene.Mutation):
+    class Arguments:
+        temp_token = graphene.String(required=True, name="tempToken")
+        code = graphene.String(required=True)
+
+    token = graphene.String()
+    user_email = graphene.String(name="userEmail")
+
+    def mutate(self, info, temp_token, code):
+        from .auth_helper import get_user_from_token, generate_token
+        user_id = get_user_from_token(temp_token)
+        if not user_id:
+            raise Exception("Token temporal inválido o expirado")
+
+        try:
+            user = in_usuario.objects.get(pk=user_id, estado='ACTIVO')
+        except in_usuario.DoesNotExist:
+            raise Exception("Usuario no encontrado o inactivo")
+
+        if not user.otp_secret:
+            raise Exception("El doble factor no está configurado para este usuario")
+
+        import pyotp
+        totp = pyotp.TOTP(user.otp_secret)
+        if not totp.verify(code):
+            raise Exception("Código de verificación incorrecto")
+
+        token_str = generate_token(user)
+        return VerifyOtp(
+            token=token_str,
+            user_email=user.correo
+        )
+
 
 
 class RegistrarEmpleadoUsuario(graphene.Mutation):
@@ -1757,6 +1921,8 @@ class Mutation(graphene.ObjectType):
     crear_solicitud      = CrearSolicitud.Field()
     editar_solicitud     = EditarSolicitud.Field()
     anular_solicitud     = AnularSolicitud.Field()
+    aprobar_solicitud    = AprobarSolicitud.Field()
+    rechazar_solicitud   = RechazarSolicitud.Field()
     agregar_det_sol      = AgregarDetSol.Field()
     editar_det_sol       = EditarDetSol.Field()
     crear_oferta         = CrearOferta.Field()
@@ -1789,8 +1955,9 @@ class Mutation(graphene.ObjectType):
 
     # ── Revaluación y depreciación ──────────────────────────────
     agregar_det_reval_con_depreciacion = AgregarDetRevalConDepreciacion.Field()
-    editar_det_reval     = EditarDetReval.Field()
-    anular_det_reval     = AnularDetReval.Field()
+    editar_det_reval                   = EditarDetReval.Field()
+    anular_det_reval                   = AnularDetReval.Field()
+    calcular_depreciacion_masiva       = CalcularDepreciacionMasiva.Field()
 
     # ── Atributos ───────────────────────────────────────────────
     crear_atributo           = CrearAtributo.Field()
@@ -1820,6 +1987,7 @@ class Mutation(graphene.ObjectType):
 
     # ── Authentication and RBAC ─────────────────────────────────
     token_auth                   = TokenAuth.Field()
+    verify_otp                   = VerifyOtp.Field()
     registrar_empleado_usuario   = RegistrarEmpleadoUsuario.Field()
     crear_rol                    = CrearRol.Field()
     editar_rol                   = EditarRol.Field()

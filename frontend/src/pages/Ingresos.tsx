@@ -1,6 +1,29 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
 
+// Helper functions to get office codes
+function getOfficeFullCode(ofic: any): string {
+  if (!ofic) return '';
+  const parts = [];
+  let current = ofic;
+  while (current) {
+    parts.unshift(current.codDpto);
+    current = current.codPadre;
+  }
+  return parts.join('-');
+}
+
+function getOfficeUnifiedCode(ofic: any): string {
+  if (!ofic) return '';
+  const parts = [];
+  let current = ofic;
+  while (current) {
+    parts.unshift(current.codDpto);
+    current = current.codPadre;
+  }
+  return parts.join('');
+}
+
 const GET_INGRESOS = gql`
   query {
     todosIngresos {
@@ -14,7 +37,22 @@ const GET_INGRESOS = gql`
       fechaFactura
       nroEgreso
       codProv { nombre }
-      codOficDest { desDpto }
+      codOficDest {
+        codOfic
+        codDpto
+        desDpto
+        nivel
+        codPadre {
+          codOfic
+          codDpto
+          nivel
+          codPadre {
+            codOfic
+            codDpto
+            nivel
+          }
+        }
+      }
     }
   }
 `;
@@ -22,8 +60,32 @@ const GET_INGRESOS = gql`
 const GET_CATALOGOS = gql`
   query {
     todosProvedores { codProv nombre }
-    todasOficinas { codOfic desDpto }
-    todosEmpleados { idEmpleado nombre apellido cargo }
+    todasOficinas {
+      codOfic
+      codDpto
+      desDpto
+      nivel
+      codPadre {
+        codOfic
+        codDpto
+        nivel
+        codPadre {
+          codOfic
+          codDpto
+          nivel
+        }
+      }
+    }
+    todosResponsables {
+      codResp
+      codEstprog
+      codEmp {
+        idEmpleado
+        nombre
+        apellido
+        cargo
+      }
+    }
   }
 `;
 
@@ -57,12 +119,6 @@ const EDITAR_INGRESO = gql`
   }
 `;
 
-const ELIMINAR_INGRESO = gql`
-  mutation($nroIngreso: Int!) {
-    eliminarIngreso(nroIngreso: $nroIngreso) { ok }
-  }
-`;
-
 const estadoLabel: Record<string, string> = { 'E': 'Elaborado', 'A': 'Aprobado', 'C': 'Cerrado' };
 const estadoClass: Record<string, string> = { 'E': 'badge-warning', 'A': 'badge-success', 'C': 'badge-info' };
 
@@ -77,13 +133,30 @@ export default function Ingresos() {
   const [editando, setEditando] = useState<any>(null);
   const [form, setForm] = useState<any>(FORM_VACIO);
 
+  // Autocomplete search states
+  const [oficinaSearch, setOficinaSearch] = useState('');
+  const [showOficinasDropdown, setShowOficinasDropdown] = useState(false);
+
+  const [recepSearch, setRecepSearch] = useState('');
+  const [showRecepDropdown, setShowRecepDropdown] = useState(false);
+
+  const [destSearch, setDestSearch] = useState('');
+  const [showDestDropdown, setShowDestDropdown] = useState(false);
+
   const { data, loading, error, refetch } = useQuery(GET_INGRESOS);
   const { data: cats } = useQuery(GET_CATALOGOS);
   const [crearIngreso] = useMutation(CREAR_INGRESO);
   const [editarIngreso] = useMutation(EDITAR_INGRESO);
-  const [eliminarIngreso] = useMutation(ELIMINAR_INGRESO);
 
-  const abrirNuevo = () => { setEditando(null); setForm(FORM_VACIO); setShowModal(true); };
+  const abrirNuevo = () => {
+    setEditando(null);
+    setForm(FORM_VACIO);
+    setOficinaSearch('');
+    setRecepSearch('');
+    setDestSearch('');
+    setShowModal(true);
+  };
+
   const abrirEditar = (i: any) => {
     setEditando(i);
     setForm({ ...FORM_VACIO, glosa: i.glosa || '', estado: i.estado || 'E', nroFactura: i.nroFactura || '', actaRecep: i.actaRecep || '' });
@@ -91,6 +164,13 @@ export default function Ingresos() {
   };
 
   const handleSubmit = async () => {
+    if (!editando) {
+      if (!form.codProv || !form.codOficDest || !form.codEmpRecep || !form.codEmpDest) {
+        alert('Por favor selecciona un Proveedor, Oficina Destino y ambos Responsables.');
+        return;
+      }
+    }
+
     try {
       if (editando) {
         await editarIngreso({ variables: {
@@ -107,9 +187,9 @@ export default function Ingresos() {
           codProv: form.codProv ? parseInt(form.codProv) : null,
           codOficDest: form.codOficDest ? parseInt(form.codOficDest) : null,
           codEmpRecep: form.codEmpRecep ? parseInt(form.codEmpRecep) : null,
-          tipoEmpRecep: form.codEmpRecep ? 1 : null,
+          tipoEmpRecep: form.codEmpRecep ? 2 : null, // 2 = Responsable
           codEmpDest: form.codEmpDest ? parseInt(form.codEmpDest) : null,
-          tipoEmpDest: form.codEmpDest ? 1 : null,
+          tipoEmpDest: form.codEmpDest ? 2 : null, // 2 = Responsable
           glosa: form.glosa || null,
           nroFactura: form.nroFactura ? parseInt(form.nroFactura) : null,
           fechaFactura: form.fechaFactura || null,
@@ -123,11 +203,48 @@ export default function Ingresos() {
     } catch (e: any) { alert('Error: ' + e.message); }
   };
 
-  const handleEliminar = async (nroIngreso: number) => {
-    if (!window.confirm('¿Eliminar este ingreso?')) return;
-    await eliminarIngreso({ variables: { nroIngreso } });
-    refetch();
+  // Autocomplete selecting handlers
+  const handleSelectOficina = (o: any) => {
+    const unified = getOfficeUnifiedCode(o);
+    setForm({ ...form, codOficDest: o.codOfic });
+    setOficinaSearch(`[${unified}] ${o.desDpto}`);
+    setShowOficinasDropdown(false);
   };
+
+  const handleSelectRecep = (r: any) => {
+    setForm({ ...form, codEmpRecep: r.codResp });
+    setRecepSearch(`[${r.codEstprog}] ${r.codEmp.nombre} ${r.codEmp.apellido}`);
+    setShowRecepDropdown(false);
+  };
+
+  const handleSelectDest = (r: any) => {
+    setForm({ ...form, codEmpDest: r.codResp });
+    setDestSearch(`[${r.codEstprog}] ${r.codEmp.nombre} ${r.codEmp.apellido}`);
+    setShowDestDropdown(false);
+  };
+
+  // Autocomplete filtering helpers
+  const filteredOficinas = cats?.todasOficinas?.filter((o: any) => {
+    const fullCode = getOfficeFullCode(o).toLowerCase();
+    const unifiedCode = getOfficeUnifiedCode(o).toLowerCase();
+    const text = o.desDpto.toLowerCase();
+    const query = oficinaSearch.toLowerCase();
+    return text.includes(query) || fullCode.includes(query) || unifiedCode.includes(query);
+  }) || [];
+
+  const filteredResponsiblesRecep = cats?.todosResponsables?.filter((r: any) => {
+    const code = r.codEstprog.toLowerCase();
+    const name = `${r.codEmp.nombre} ${r.codEmp.apellido}`.toLowerCase();
+    const query = recepSearch.toLowerCase();
+    return code.includes(query) || name.includes(query);
+  }) || [];
+
+  const filteredResponsiblesDest = cats?.todosResponsables?.filter((r: any) => {
+    const code = r.codEstprog.toLowerCase();
+    const name = `${r.codEmp.nombre} ${r.codEmp.apellido}`.toLowerCase();
+    const query = destSearch.toLowerCase();
+    return code.includes(query) || name.includes(query);
+  }) || [];
 
   if (loading) return <div className="loading">Cargando ingresos...</div>;
   if (error) return <div className="error">Error: {error.message}</div>;
@@ -166,7 +283,11 @@ export default function Ingresos() {
                 <td>{i.actaRecep || '-'}</td>
                 <td>{i.glosa || '-'}</td>
                 <td>{i.codProv?.nombre || '-'}</td>
-                <td>{i.codOficDest?.desDpto || '-'}</td>
+                <td>
+                  {i.codOficDest
+                    ? `[${getOfficeUnifiedCode(i.codOficDest)}] ${i.codOficDest.desDpto}`
+                    : '-'}
+                </td>
                 <td>{i.fechaRecep || '-'}</td>
                 <td>{i.nroFactura || '-'}</td>
                 <td>
@@ -177,7 +298,6 @@ export default function Ingresos() {
                 <td>
                   <div className="btn-group">
                     <button className="btn btn-warning btn-sm" onClick={() => abrirEditar(i)}>Editar</button>
-                    <button className="btn btn-danger btn-sm" onClick={() => handleEliminar(i.nroIngreso)}>Eliminar</button>
                   </div>
                 </td>
               </tr>
@@ -219,34 +339,111 @@ export default function Ingresos() {
                     ))}
                   </select>
                 </div>
+                
                 <div className="form-group">
-                  <label>Oficina Destino</label>
-                  <select value={form.codOficDest} onChange={e => setForm({...form, codOficDest: e.target.value})}>
-                    <option value="">Seleccionar...</option>
-                    {cats?.todasOficinas?.map((o: any) => (
-                      <option key={o.codOfic} value={o.codOfic}>{o.desDpto}</option>
-                    ))}
-                  </select>
+                  <label>Oficina Destino *</label>
+                  <div className="autocomplete-container">
+                    <input
+                      type="text"
+                      value={oficinaSearch}
+                      onChange={e => {
+                        setOficinaSearch(e.target.value);
+                        setForm({ ...form, codOficDest: '' });
+                        setShowOficinasDropdown(true);
+                      }}
+                      onFocus={() => setShowOficinasDropdown(true)}
+                      onBlur={() => setTimeout(() => setShowOficinasDropdown(false), 200)}
+                      placeholder="Buscar por código (1221, 1-22-1) o nombre..."
+                    />
+                    {showOficinasDropdown && (
+                      <ul className="autocomplete-dropdown">
+                        {filteredOficinas.slice(0, 20).map((o: any) => {
+                          const unified = getOfficeUnifiedCode(o);
+                          return (
+                            <li
+                              key={o.codOfic}
+                              className="autocomplete-item"
+                              onClick={() => handleSelectOficina(o)}
+                            >
+                              [{unified}] {o.desDpto}
+                            </li>
+                          );
+                        })}
+                        {filteredOficinas.length === 0 && (
+                          <li className="autocomplete-no-results">No se encontraron oficinas</li>
+                        )}
+                      </ul>
+                    )}
+                  </div>
                 </div>
 
-                <div className="section-label">Empleados</div>
+                <div className="section-label">Responsables</div>
                 <div className="form-group">
-                  <label>Empleado que Recepciona</label>
-                  <select value={form.codEmpRecep} onChange={e => setForm({...form, codEmpRecep: e.target.value})}>
-                    <option value="">Seleccionar...</option>
-                    {cats?.todosEmpleados?.map((e: any) => (
-                      <option key={e.idEmpleado} value={e.idEmpleado}>{e.nombre} {e.apellido}</option>
-                    ))}
-                  </select>
+                  <label>Responsable que Recepciona *</label>
+                  <div className="autocomplete-container">
+                    <input
+                      type="text"
+                      value={recepSearch}
+                      onChange={e => {
+                        setRecepSearch(e.target.value);
+                        setForm({ ...form, codEmpRecep: '' });
+                        setShowRecepDropdown(true);
+                      }}
+                      onFocus={() => setShowRecepDropdown(true)}
+                      onBlur={() => setTimeout(() => setShowRecepDropdown(false), 200)}
+                      placeholder="Buscar por código (ej. 1221) o nombre..."
+                    />
+                    {showRecepDropdown && (
+                      <ul className="autocomplete-dropdown">
+                        {filteredResponsiblesRecep.slice(0, 20).map((r: any) => (
+                          <li
+                            key={r.codResp}
+                            className="autocomplete-item"
+                            onClick={() => handleSelectRecep(r)}
+                          >
+                            [{r.codEstprog}] {r.codEmp.nombre} {r.codEmp.apellido} ({r.codEmp.cargo || 'Sin cargo'})
+                          </li>
+                        ))}
+                        {filteredResponsiblesRecep.length === 0 && (
+                          <li className="autocomplete-no-results">No se encontraron responsables</li>
+                        )}
+                      </ul>
+                    )}
+                  </div>
                 </div>
+
                 <div className="form-group">
-                  <label>Empleado Destino</label>
-                  <select value={form.codEmpDest} onChange={e => setForm({...form, codEmpDest: e.target.value})}>
-                    <option value="">Seleccionar...</option>
-                    {cats?.todosEmpleados?.map((e: any) => (
-                      <option key={e.idEmpleado} value={e.idEmpleado}>{e.nombre} {e.apellido}</option>
-                    ))}
-                  </select>
+                  <label>Responsable Destino *</label>
+                  <div className="autocomplete-container">
+                    <input
+                      type="text"
+                      value={destSearch}
+                      onChange={e => {
+                        setDestSearch(e.target.value);
+                        setForm({ ...form, codEmpDest: '' });
+                        setShowDestDropdown(true);
+                      }}
+                      onFocus={() => setShowDestDropdown(true)}
+                      onBlur={() => setTimeout(() => setShowDestDropdown(false), 200)}
+                      placeholder="Buscar por código (ej. 1221) o nombre..."
+                    />
+                    {showDestDropdown && (
+                      <ul className="autocomplete-dropdown">
+                        {filteredResponsiblesDest.slice(0, 20).map((r: any) => (
+                          <li
+                            key={r.codResp}
+                            className="autocomplete-item"
+                            onClick={() => handleSelectDest(r)}
+                          >
+                            [{r.codEstprog}] {r.codEmp.nombre} {r.codEmp.apellido} ({r.codEmp.cargo || 'Sin cargo'})
+                          </li>
+                        ))}
+                        {filteredResponsiblesDest.length === 0 && (
+                          <li className="autocomplete-no-results">No se encontraron responsables</li>
+                        )}
+                      </ul>
+                    )}
+                  </div>
                 </div>
 
                 <div className="section-label">Documentos</div>

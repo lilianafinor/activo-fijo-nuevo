@@ -134,7 +134,7 @@ class in_parte(models.Model):
 class in_revaluo(models.Model):
     cod_reval = models.AutoField(primary_key=True)
     tipo_reval = models.IntegerField()
-    documento = models.CharField(max_length=50, null=True, blank=True)
+    documento = models.CharField(max_length=255, null=True, blank=True)
     fecha_ini = models.DateField()
     fecha_fin = models.DateField(null=True, blank=True)
     estado = models.CharField(max_length=1)

@@ -1,3 +1,4 @@
+import PageLayout from '../components/ui/PageLayout';
 import React, { useState } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
 
@@ -104,11 +105,14 @@ export default function Transferencias() {
   if (error) return <div className="error">Error: {error.message}</div>;
 
   return (
-    <div>
-      <div className="page-header">
-        <h1 className="page-title">🔄 Transferencias</h1>
-        <button className="btn btn-primary" onClick={handleNueva}>+ Nueva Transferencia</button>
-      </div>
+    <PageLayout
+      title="Transferencias"
+      actions={[
+        { label: 'Nuevo', icon: '+', variant: 'primary' as const, onClick: handleNueva },
+        { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
+      ]}
+    >
+
       <div className="table-container">
         <table>
           <thead>
@@ -209,6 +213,6 @@ export default function Transferencias() {
           </div>
         </div>
       )}
-    </div>
+    </PageLayout>
   );
 }

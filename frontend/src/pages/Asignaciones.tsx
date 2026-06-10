@@ -1,3 +1,4 @@
+import PageLayout from '../components/ui/PageLayout';
 import React, { useState, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
 
@@ -442,7 +443,14 @@ export default function Asignaciones() {
   if (error) return <div className="error">Error: {error.message}</div>;
 
   return (
-    <div>
+    <PageLayout
+      title="Asignación de Activos"
+      actions={[
+        { label: 'Asignación Masiva', icon: '+', variant: 'primary' as const, onClick: abrirNuevo },
+        { label: 'Tipos de Asignación', icon: '▤', onClick: () => { setFormTipoAsig({ tipoAsig: '', des: '', abrev: '' }); setShowTiposModal(true); } },
+        { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
+      ]}
+    >
       {/* Header */}
       <div className="page-header flex justify-between items-center mb-6">
         <h1 className="page-title text-2xl font-bold text-white">📌 Asignación de Activos</h1>
@@ -911,6 +919,6 @@ export default function Asignaciones() {
           </div>
         </div>
       )}
-    </div>
+    </PageLayout>
   );
 }

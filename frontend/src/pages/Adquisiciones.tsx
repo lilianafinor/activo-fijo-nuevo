@@ -1,3 +1,4 @@
+import PageLayout from '../components/ui/PageLayout';
 import React, { useState } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
 
@@ -550,21 +551,23 @@ export default function Adquisiciones() {
   };
 
   return (
-    <div>
-      <div className="page-header">
-        <h1 className="page-title">🛒 Portal de Adquisiciones</h1>
-        <div className="btn-group">
-          {activeTab === 'solicitudes' && (
-            <button className="btn btn-primary" onClick={handleOpenSolModal}>+ Nueva Solicitud</button>
-          )}
-          {activeTab === 'ofertas' && (
-            <button className="btn btn-success" onClick={() => setShowOferModal(true)}>+ Registrar Oferta</button>
-          )}
-          {activeTab === 'ordenes' && (
-            <button className="btn btn-primary" onClick={() => setShowOrdenModal(true)}>+ Generar Orden</button>
-          )}
-        </div>
-      </div>
+    <PageLayout
+      title="Portal de Adquisiciones"
+      actions={[
+        {
+          label: activeTab === 'solicitudes' ? 'Nueva Solicitud' : activeTab === 'ofertas' ? 'Nueva Oferta' : 'Generar Orden',
+          icon: '+',
+          variant: 'primary' as const,
+          onClick: () => {
+            if (activeTab === 'solicitudes') handleOpenSolModal();
+            else if (activeTab === 'ofertas') setShowOferModal(true);
+            else setShowOrdenModal(true);
+          }
+        },
+        { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
+      ]}
+    >
+
 
       {/* Tabs Menu */}
       <div style={{ display: 'flex', borderBottom: '1px solid #cbd5e1', marginBottom: '1.5rem', gap: '0.5rem' }}>
@@ -1114,7 +1117,7 @@ export default function Adquisiciones() {
           </div>
         </div>
       )}
-    </div>
+    </PageLayout>
   );
 }
 

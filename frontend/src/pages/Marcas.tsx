@@ -1,3 +1,4 @@
+import PageLayout from '../components/ui/PageLayout';
 import React, { useState } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
 
@@ -44,14 +45,15 @@ export default function Marcas() {
   if (error) return <div className="error">Error: {error.message}</div>;
 
   return (
-    <div>
-      <div className="page-header">
-        <h1 className="page-title">🏷️ Marcas y Modelos</h1>
-        <div className="btn-group">
-          <button className="btn btn-primary" onClick={() => { setEditandoMarca(null); setFormMarca({ desMarca: '' }); setShowMarcaModal(true); }}>+ Nueva Marca</button>
-          <button className="btn btn-success" onClick={() => setShowModeloModal(true)}>+ Nuevo Modelo</button>
-        </div>
-      </div>
+    <PageLayout
+      title="Marcas y Modelos"
+      actions={[
+        { label: 'Nueva Marca', icon: '+', variant: 'primary' as const, onClick: () => { setEditandoMarca(null); setFormMarca({ desMarca: '' }); setShowMarcaModal(true); } },
+        { label: 'Nuevo Modelo', icon: '+', onClick: () => setShowModeloModal(true) },
+        { label: 'Actualizar', icon: '↺', onClick: () => { refetchMarcas(); refetchModelos(); } },
+      ]}
+    >
+
 
       <h3 style={{ margin: '0 0 0.75rem', color: '#555', fontSize: '1rem' }}>Marcas</h3>
       <div className="table-container" style={{ marginBottom: '2rem' }}>
@@ -120,6 +122,6 @@ export default function Marcas() {
           </div>
         </div>
       )}
-    </div>
+    </PageLayout>
   );
 }

@@ -6,7 +6,7 @@ interface NavItem {
   label: string;
   to: string;
   icon: string;
-  permission?: string;   // si undefined, siempre visible
+  permission?: string;
 }
 
 interface NavGroup {
@@ -20,70 +20,70 @@ const NAV_GROUPS: NavGroup[] = [
   {
     id: 'gestion',
     label: 'Gestión de Activos',
-    icon: '📦',
+    icon: '▣',
     items: [
-      { label: 'Ingresos',        to: '/ingresos',       icon: '📋' },
-      { label: 'Activos Fijos',   to: '/activos',        icon: '🏷️' },
-      { label: 'Asignaciones',    to: '/asignaciones',   icon: '👤' },
-      { label: 'Transferencias',  to: '/transferencias', icon: '🔄' },
-      { label: 'Bajas',           to: '/bajas',          icon: '📤' },
-      { label: 'Vehículos',       to: '/vehiculos',      icon: '🚗' },
+      { label: 'Ingresos',        to: '/ingresos',       icon: '↓' },
+      { label: 'Activos Fijos',   to: '/activos',        icon: '◈' },
+      { label: 'Asignaciones',    to: '/asignaciones',   icon: '→' },
+      { label: 'Transferencias',  to: '/transferencias', icon: '⇄' },
+      { label: 'Bajas',           to: '/bajas',          icon: '↥' },
+      { label: 'Vehículos',       to: '/vehiculos',      icon: '◻' },
     ],
   },
   {
     id: 'contabilidad',
     label: 'Contabilidad',
-    icon: '💰',
+    icon: '≡',
     items: [
-      { label: 'Depreciaciones',  to: '/depreciaciones', icon: '📉' },
-      { label: 'Revalúos',        to: '/revaluos',       icon: '📈' },
-      { label: 'Tasas UFV',       to: '/ufvs',           icon: '💹' },
+      { label: 'Depreciaciones',  to: '/depreciaciones', icon: '▽' },
+      { label: 'Revalúos',        to: '/revaluos',       icon: '△' },
+      { label: 'Tasas UFV',       to: '/ufvs',           icon: '$' },
     ],
   },
   {
     id: 'adquisiciones',
     label: 'Adquisiciones',
-    icon: '🛒',
+    icon: '⊕',
     items: [
-      { label: 'Adquisiciones',   to: '/adquisiciones',  icon: '🛒' },
+      { label: 'Adquisiciones',   to: '/adquisiciones',  icon: '⊕' },
     ],
   },
   {
     id: 'reportes',
     label: 'Reportes y Auditoría',
-    icon: '📊',
+    icon: '▤',
     items: [
-      { label: 'Reportes',        to: '/reportes',       icon: '📊' },
-      { label: 'Bitácora',        to: '/logs',           icon: '📝' },
+      { label: 'Reportes',        to: '/reportes',       icon: '▤' },
+      { label: 'Bitácora',        to: '/logs',           icon: '≣' },
     ],
   },
   {
     id: 'admin',
     label: 'Administración',
-    icon: '⚙️',
+    icon: '◆',
     items: [
-      { label: 'Usuarios',        to: '/usuarios',       icon: '👥' },
-      { label: 'Roles y Permisos',to: '/roles',          icon: '🔐' },
+      { label: 'Usuarios',        to: '/usuarios',       icon: '◉' },
+      { label: 'Roles y Permisos',to: '/roles',          icon: '◐' },
     ],
   },
   {
     id: 'catalogos',
     label: 'Catálogos',
-    icon: '📚',
+    icon: '▦',
     items: [
-      { label: 'Grupos',          to: '/grupos',         icon: '🗂️' },
-      { label: 'Oficinas',        to: '/oficinas',       icon: '🏢' },
-      { label: 'Proveedores',     to: '/proveedores',    icon: '🏪' },
-      { label: 'Marcas',          to: '/marcas',         icon: '™️' },
-      { label: 'Condiciones',     to: '/condiciones',    icon: '📋' },
-      { label: 'Est. de Activo',  to: '/estados',        icon: '🔵' },
-      { label: 'Unidades',        to: '/unidades',       icon: '📏' },
-      { label: 'Gestiones',       to: '/gestiones',      icon: '📅' },
-      { label: 'Partes',          to: '/partes',         icon: '🔧' },
-      { label: 'Atributos',       to: '/atributos',      icon: '⚙️' },
-      { label: 'Tipos',           to: '/tipos',          icon: '🏷️' },
-      { label: 'Materiales',      to: '/materiales',     icon: '🧱' },
-      { label: 'Funciones Adm.',  to: '/funciones',      icon: '⚡' },
+      { label: 'Grupos',          to: '/grupos',         icon: '▥' },
+      { label: 'Oficinas',        to: '/oficinas',       icon: '▣' },
+      { label: 'Proveedores',     to: '/proveedores',    icon: '◫' },
+      { label: 'Marcas',          to: '/marcas',         icon: '™' },
+      { label: 'Condiciones',     to: '/condiciones',    icon: '◈' },
+      { label: 'Est. de Activo',  to: '/estados',        icon: '●' },
+      { label: 'Unidades',        to: '/unidades',       icon: '▭' },
+      { label: 'Gestiones',       to: '/gestiones',      icon: '◷' },
+      { label: 'Partes',          to: '/partes',         icon: '◧' },
+      { label: 'Atributos',       to: '/atributos',      icon: '◈' },
+      { label: 'Tipos',           to: '/tipos',          icon: '◇' },
+      { label: 'Materiales',      to: '/materiales',     icon: '◼' },
+      { label: 'Funciones Adm.',  to: '/funciones',      icon: '◑' },
     ],
   },
 ];
@@ -117,7 +117,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
   }, [location.pathname]);
 
   const toggleGroup = (id: string) => {
-    if (collapsed) return; // En modo colapsado, no se expanden grupos
+    if (collapsed) return;
     setOpenGroups(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
@@ -125,11 +125,11 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
     <aside className={`sidebar ${collapsed ? 'sidebar-collapsed' : ''}`}>
       {/* Brand */}
       <div className="sidebar-brand">
-        <span className="sidebar-brand-icon">🏛️</span>
+        <span className="sidebar-brand-icon" style={{ fontWeight: 900, fontSize: '1rem', color: '#7ab8f5' }}>AF</span>
         {!collapsed && (
           <div className="sidebar-brand-text">
             <span className="sidebar-brand-title">Activos Fijos</span>
-            <span className="sidebar-brand-sub">UAGRM</span>
+            <span className="sidebar-brand-sub">UAGRM · Adm. de Bienes</span>
           </div>
         )}
         <button className="sidebar-toggle" onClick={onToggle} title={collapsed ? 'Expandir' : 'Colapsar'}>
@@ -188,7 +188,7 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
       {/* Footer */}
       {!collapsed && (
         <div className="sidebar-footer">
-          <span className="sidebar-footer-text">v2.0 · MEFP NC3</span>
+          <span className="sidebar-footer-text">SIAEF v2.0 · MEFP</span>
         </div>
       )}
     </aside>

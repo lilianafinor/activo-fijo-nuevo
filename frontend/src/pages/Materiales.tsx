@@ -1,3 +1,4 @@
+import PageLayout from '../components/ui/PageLayout';
 import React, { useState } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
 
@@ -91,13 +92,13 @@ export default function Materiales() {
   if (error) return <div className="error">Error: {error.message}</div>;
 
   return (
-    <div>
-      <div className="page-header">
-        <h1 className="page-title">📦 Tipos de Material</h1>
-        <button className="btn btn-primary" onClick={abrirNuevo}>
-          + Nuevo Tipo de Material
-        </button>
-      </div>
+    <PageLayout
+      title="Tipos de Material"
+      actions={[
+        { label: 'Nuevo', icon: '+', variant: 'primary' as const, onClick: abrirNuevo },
+        { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
+      ]}
+    >
 
       <div className="table-container">
         <table>
@@ -174,6 +175,6 @@ export default function Materiales() {
           </div>
         </div>
       )}
-    </div>
+    </PageLayout>
   );
 }

@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
 import { GET_ACTIVOS, GET_CATALOGOS_ACTIVOS } from '../graphql/queries';
 import { CREAR_ACTIVO, EDITAR_ACTIVO, APROBAR_ACTIVO } from '../graphql/mutations';
+import PageLayout from '../components/ui/PageLayout';
 
 const permisos = ['ver_activos', 'crear_activo', 'eliminar_activo'];
 
@@ -484,10 +485,9 @@ export default function Activos() {
   // ==================== RENDER ====================
   if (!puedeVer) {
     return (
-      <div className="text-center py-16">
-        <div className="text-4xl mb-3 opacity-50">🔒</div>
-        <h3 className="text-red-400 text-lg font-medium mb-1">Acceso denegado</h3>
-        <p className="text-slate-500 text-sm">No tienes permisos para ver los activos</p>
+      <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--status-elaborado)' }}>
+        <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>&#128274;</div>
+        <strong>Acceso denegado.</strong> No tiene permisos para ver los activos.
       </div>
     );
   }
@@ -495,32 +495,50 @@ export default function Activos() {
   if (loading) return <div className="loading">Cargando activos...</div>;
   if (queryError) return <div className="error">Error: {queryError.message}</div>;
 
+  const acciones = [
+    {
+      label: 'Nuevo',
+      icon: '+',
+      variant: 'primary' as const,
+      disabled: !puedeCrear,
+      onClick: () => { setForm(FORM_VACIO); setGrupoSelDes(''); setGrupoSearch(''); setShowModal(true); },
+    },
+    {
+      label: 'Actualizar',
+      icon: '\u21BA',
+      onClick: () => refetch(),
+    },
+  ];
+
   return (
-    <div>
-      {/* Mensajes */}
-      {mensaje && <div className="alert alert-success">{mensaje}</div>}
-      {error   && <div className="alert alert-danger">{error}</div>}
-
-      {/* Header */}
-      <div className="page-header">
-        <h1 className="page-title">📋 Activos Fijos</h1>
-        {puedeCrear && (
-          <button className="btn btn-primary" onClick={() => { setForm(FORM_VACIO); setGrupoSelDes(''); setGrupoSearch(''); setShowModal(true); }}>
-            + Nuevo Activo
-          </button>
-        )}
-      </div>
-
-      {/* Barra de búsqueda */}
-      <div className="table-toolbar" style={{ marginBottom: '1rem' }}>
+    <PageLayout
+      title="Activos Fijos"
+      actions={acciones}
+      toolbar={
         <input
           type="text"
           className="search-input"
-          placeholder="Buscar por código, descripción o serie..."
+          placeholder="Buscar por codigo, descripcion o serie..."
           value={busqueda}
           onChange={e => setBusqueda(e.target.value)}
+          style={{ maxWidth: '400px' }}
         />
-      </div>
+      }
+      footer={
+        totalPaginas > 1 ? (
+          <div className="pagination">
+            <span>Pagina {paginaActualSegura} de {totalPaginas} ({activosFiltrados.length} registros)</span>
+            <div className="pagination-controls">
+              <button className="pagination-btn" onClick={() => setPaginaActual(p => Math.max(1, p - 1))} disabled={paginaActualSegura === 1}>&laquo; Anterior</button>
+              <button className="pagination-btn" onClick={() => setPaginaActual(p => Math.min(totalPaginas, p + 1))} disabled={paginaActualSegura === totalPaginas}>Siguiente &raquo;</button>
+            </div>
+          </div>
+        ) : undefined
+      }
+    >
+      {/* Mensajes */}
+      {mensaje && <div className="alert alert-success">{mensaje}</div>}
+      {error   && <div className="alert alert-danger">{error}</div>}
 
       {/* Tabla */}
       <div className="table-container" style={{ overflowX: 'auto' }}>
@@ -724,11 +742,11 @@ export default function Activos() {
       {/* Modal */}
 {showModal && (
   <div className="modal-overlay" onClick={() => { setShowModal(false); setEditId(null); }}>
-    <div className="modal-container" onClick={e => e.stopPropagation()}>
+    <div className="modal modal-lg" onClick={e => e.stopPropagation()}>
       
       {/* Header */}
-      <div className="modal-header">
-        <h2>{editId ? 'Editar Activo' : 'Registrar Activo'}</h2>
+      <div className="modal-title">
+        <span>{editId ? '✏️ EDITAR ACTIVO' : '➕ REGISTRAR ACTIVO'}</span>
         <button className="modal-close" onClick={() => { setShowModal(false); setEditId(null); }}>
           ✕
         </button>
@@ -859,8 +877,7 @@ export default function Activos() {
             </select>
           </div>
 
-          <hr className="section-divider" />
-          <h3 className="section-title">Datos Fiscales / Control (VSIAF)</h3>
+          <div className="section-bar" style={{ margin: '1rem 0 0.5rem' }}>Datos Fiscales / Control (VSIAF)</div>
           <div className="form-grid">
             <div className="form-group">
               <label>Organismo Financiador</label>
@@ -878,8 +895,7 @@ export default function Activos() {
 
           {!esSimple && (
             <>
-              <hr className="section-divider" />
-              <h3 className="section-title">Datos Técnicos (Equipo Detallado)</h3>
+              <div className="section-bar" style={{ margin: '1rem 0 0.5rem' }}>Datos Técnicos (Equipo Detallado)</div>
               <div className="form-grid">
                 <div className="form-group">
                   <label>Nro. Serie</label>
@@ -918,10 +934,10 @@ export default function Activos() {
                 placeholder="1" 
               />
               {creandoLote && (
-                <div className="mt-2 bg-blue-500/10 border border-blue-500/20 rounded-lg p-2 text-center">
-                  <p className="text-blue-400 text-sm">Creando {progresoLote.actual} de {progresoLote.total}...</p>
-                  <div className="mt-1 h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                    <div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${(progresoLote.actual / progresoLote.total) * 100}%` }} />
+                <div style={{ marginTop: '0.5rem', background: 'var(--blue-pale)', border: '1px solid var(--border)', padding: '0.5rem', textAlign: 'center' }}>
+                  <p style={{ color: 'var(--navy)', fontWeight: 600, fontSize: '0.8rem' }}>Creando {progresoLote.actual} de {progresoLote.total}...</p>
+                  <div style={{ marginTop: '0.25rem', height: '6px', background: 'var(--border-light)', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', background: 'var(--blue)', transition: 'width 0.3s', width: `${(progresoLote.actual / progresoLote.total) * 100}%` }} />
                   </div>
                 </div>
               )}
@@ -959,7 +975,7 @@ export default function Activos() {
           }}
         />
       )}
-    </div>
+    </PageLayout>
   );
 }
 
@@ -1051,13 +1067,17 @@ function SpecsModal({ activo, onClose }: { activo: any; onClose: () => void }) {
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()} style={{ width: '620px' }}>
-        <h2 className="modal-title">⚙️ Especificaciones Técnicas</h2>
-
-        <div style={{ marginBottom: '1rem', background: 'var(--bg-surface)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
-          <p style={{ margin: '0 0 0.25rem', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>Activo Fijo:</p>
-          <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: 'var(--primary)' }}>[{activo.codActivo}] {activo.descripcion}</p>
-          <p style={{ margin: '0.25rem 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>Grupo: {activo.codGrupo?.desGrupo}</p>
+        <div className="modal-title">
+          <span>⚙️ ESPECIFICACIONES TÉCNICAS</span>
+          <button className="modal-close" onClick={onClose}>✕</button>
         </div>
+
+        <div className="modal-body">
+          <div style={{ marginBottom: '1rem', background: 'var(--blue-pale)', padding: '0.75rem 1rem', border: '1px solid var(--border)' }}>
+            <p style={{ margin: '0 0 0.25rem', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>Activo Fijo:</p>
+            <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: 'var(--navy)' }}>[{activo.codActivo}] {activo.descripcion}</p>
+            <p style={{ margin: '0.25rem 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>Grupo: {activo.codGrupo?.desGrupo}</p>
+          </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '420px', overflowY: 'auto', paddingRight: '4px' }}>
           {groupAttributes.length === 0 ? (
@@ -1101,6 +1121,7 @@ function SpecsModal({ activo, onClose }: { activo: any; onClose: () => void }) {
               );
             })
           )}
+        </div>
         </div>
 
         <div className="modal-actions">
@@ -1258,21 +1279,22 @@ function VehiculoModal({ activo, onClose }: { activo: any; onClose: () => void }
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-container" onClick={e => e.stopPropagation()} style={{ width: '800px', maxWidth: '95vw', padding: '1.5rem', background: '#ffffff', color: '#1e293b' }}>
-        <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '2px solid #f0f2f5', paddingBottom: '0.5rem', background: '#ffffff' }}>
-          <h2 className="modal-title" style={{ margin: 0, color: '#1a3c6e' }}>🚗 Ficha Técnica de Vehículo</h2>
+      <div className="modal modal-lg" onClick={e => e.stopPropagation()}>
+        <div className="modal-title">
+          <span>🚗 FICHA TÉCNICA DE VEHÍCULO</span>
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
 
-        <div style={{ marginBottom: '1rem', background: '#f8fafc', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-          <p style={{ margin: '0 0 0.25rem', fontSize: '0.8rem', color: '#64748b' }}>Activo Asociado:</p>
-          <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: '#1a3c6e' }}>[{activo.codActivo}] {activo.descripcion}</p>
-        </div>
+        <div className="modal-body">
+          <div style={{ marginBottom: '1rem', background: 'var(--blue-pale)', padding: '0.75rem 1rem', border: '1px solid var(--border)' }}>
+            <p style={{ margin: '0 0 0.25rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Activo Asociado:</p>
+            <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: 'var(--navy)' }}>[{activo.codActivo}] {activo.descripcion}</p>
+          </div>
 
         {loading ? (
           <div style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>Cargando datos del vehículo...</div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', maxHeight: '60vh', overflowY: 'auto', paddingRight: '6px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1.5rem' }}>
               {/* Imagen y Carga */}
@@ -1417,8 +1439,9 @@ function VehiculoModal({ activo, onClose }: { activo: any; onClose: () => void }
 
           </div>
         )}
+        </div>
 
-        <div className="modal-actions" style={{ borderTop: '1px solid #f0f2f5', marginTop: '1rem', paddingTop: '0.75rem' }}>
+        <div className="modal-actions">
           <button className="btn btn-primary" onClick={handleSave} disabled={saving || loading}>
             {saving ? 'Guardando...' : 'Guardar Ficha'}
           </button>

@@ -1,3 +1,4 @@
+import PageLayout from '../components/ui/PageLayout';
 import React, { useState } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
 
@@ -217,10 +218,15 @@ export default function Roles() {
   const activeRolePermissions = selectedRol?.permisos?.filter((rp: any) => rp.estado) || [];
 
   return (
-    <div>
-      <div className="page-header">
-        <h1 className="page-title">🛡️ Configuración de Roles y Permisos (RBAC)</h1>
-      </div>
+    <PageLayout
+      title="Configuración de Roles y Permisos (RBAC)"
+      actions={[
+        { label: 'Nuevo Rol', icon: '+', variant: 'primary' as const, onClick: () => { setEditRolObj(null); setRolName(''); setRolDesc(''); setShowRolModal(true); } },
+        { label: 'Nuevo Permiso', icon: '+', onClick: () => { setEditPermObj(null); setPermName(''); setShowPermModal(true); } },
+        { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
+      ]}
+    >
+
 
       <div style={{ display: 'grid', gridTemplateColumns: selectedRol ? '1.5fr 1fr' : '1fr', gap: '1.5rem', alignItems: 'start' }}>
         
@@ -451,6 +457,6 @@ export default function Roles() {
         </div>
       )}
 
-    </div>
+    </PageLayout>
   );
 }

@@ -1,3 +1,4 @@
+import PageLayout from '../components/ui/PageLayout';
 import React, { useState } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
 import { REGISTRAR_EMPLEADO_USUARIO } from '../graphql/mutations';
@@ -354,13 +355,14 @@ export default function Usuarios() {
   if (error) return <div className="error">Error: {error.message}</div>;
 
   return (
-    <div>
-      <div className="page-header">
-        <h1 className="page-title">👥 Personal, Usuarios y Permisos</h1>
-        <button className="btn btn-primary" onClick={() => setShowModal(true)}>
-          + Registrar Personal
-        </button>
-      </div>
+    <PageLayout
+      title="Personal, Usuarios y Permisos"
+      actions={[
+        { label: 'Nuevo', icon: '+', variant: 'primary' as const, onClick: () => setShowModal(true) },
+        { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
+      ]}
+    >
+
 
       <div style={{ display: 'grid', gridTemplateColumns: usuarioSeleccionado ? '1.5fr 1fr' : '1fr', gap: '1.5rem', alignItems: 'start' }}>
         {/* Tabla principal de usuarios */}
@@ -828,6 +830,6 @@ export default function Usuarios() {
           </div>
         </div>
       )}
-    </div>
+    </PageLayout>
   );
 }

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
+import PageLayout from '../components/ui/PageLayout';
 
 // Helper functions to get office codes
 function getOfficeFullCode(ofic: any): string {
@@ -250,11 +251,13 @@ export default function Ingresos() {
   if (error) return <div className="error">Error: {error.message}</div>;
 
   return (
-    <div>
-      <div className="page-header">
-        <h1 className="page-title">📥 Ingresos de Bienes</h1>
-        <button className="btn btn-primary" onClick={abrirNuevo}>+ Nuevo Ingreso</button>
-      </div>
+    <PageLayout
+      title="Ingresos de Bienes"
+      actions={[
+        { label: 'Nuevo', icon: '+', variant: 'primary', onClick: abrirNuevo },
+        { label: 'Actualizar', icon: '\u21BA', onClick: () => refetch() },
+      ]}
+    >
 
       <div className="table-container">
         <table>
@@ -495,6 +498,6 @@ export default function Ingresos() {
           </div>
         </div>
       )}
-    </div>
+    </PageLayout>
   );
 }

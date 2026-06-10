@@ -1,3 +1,4 @@
+import PageLayout from '../components/ui/PageLayout';
 import React, { useState } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
 import { GET_OFICINAS } from '../graphql/queries';
@@ -86,11 +87,14 @@ export default function Oficinas() {
   if (error) return <div className="error">Error: {error.message}</div>;
 
   return (
-    <div>
-      <div className="page-header">
-        <h1 className="page-title">🏛️ Oficinas / Unidades</h1>
-        <button className="btn btn-primary" onClick={() => setShowModal(true)}>+ Nueva Oficina</button>
-      </div>
+    <PageLayout
+      title="Oficinas / Unidades"
+      actions={[
+        { label: 'Nuevo', icon: '+', variant: 'primary' as const, onClick: () => { setForm({ codDpto: '', desDpto: '', codPadre: '', nivel: '1', aB: 'A' }); setShowModal(true); } },
+        { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
+      ]}
+    >
+
 
       <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
         <span className="badge badge-info">Nivel 1 — Campus / Institución</span>
@@ -163,6 +167,6 @@ export default function Oficinas() {
           </div>
         </div>
       )}
-    </div>
+    </PageLayout>
   );
 }

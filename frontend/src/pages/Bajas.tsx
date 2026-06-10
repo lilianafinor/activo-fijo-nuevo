@@ -1,3 +1,4 @@
+import PageLayout from '../components/ui/PageLayout';
 import React, { useState } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
 
@@ -42,11 +43,14 @@ export default function Bajas() {
   if (error) return <div className="error">Error: {error.message}</div>;
 
   return (
-    <div>
-      <div className="page-header">
-        <h1 className="page-title">🗑️ Baja de Activos</h1>
-        <button className="btn btn-danger" onClick={() => setShowModal(true)}>+ Registrar Baja</button>
-      </div>
+    <PageLayout
+      title="Baja de Activos"
+      actions={[
+        { label: 'Nuevo', icon: '+', variant: 'primary' as const, onClick: () => setShowModal(true) },
+        { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
+      ]}
+    >
+
       <div className="table-container">
         <table>
           <thead>
@@ -97,6 +101,6 @@ export default function Bajas() {
           </div>
         </div>
       )}
-    </div>
+    </PageLayout>
   );
 }

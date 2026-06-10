@@ -1,3 +1,4 @@
+import PageLayout from '../components/ui/PageLayout';
 import React, { useState } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
 
@@ -142,7 +143,7 @@ export default function Atributos() {
   const [optionDes, setOptionDes] = useState('');
 
   // Fetch groups
-  const { data: groupsData } = useQuery(GET_GRUPOS_Y_ATRIBUTOS);
+  const { data: groupsData, refetch: refetchGroups } = useQuery(GET_GRUPOS_Y_ATRIBUTOS);
 
   // Fetch attributes of selected group
   const { data: atribsData, loading: loadingAtribs, refetch: refetchAtribs } = useQuery(GET_ATRIBUTOS_POR_GRUPO, {
@@ -257,10 +258,19 @@ export default function Atributos() {
   };
 
   return (
-    <div>
-      <div className="page-header">
-        <h1 className="page-title">⚙️ Configuración de Atributos Técnicos</h1>
-      </div>
+    <PageLayout
+      title="Configuración de Atributos Técnicos"
+      actions={[
+        ...(selectedGrupoId ? [{
+          label: 'Nuevo Atributo',
+          icon: '+',
+          variant: 'primary' as const,
+          onClick: () => { setEditAtribObj(null); setAtribDes(''); setShowAtribModal(true); }
+        }] : []),
+        { label: 'Actualizar', icon: '↺', onClick: () => { refetchGroups(); if (selectedGrupoId) refetchAtribs(); if (selectedAtrib) refetchOptions(); } },
+      ]}
+    >
+
 
       {/* Selector de Grupo */}
       <div style={{ background: 'white', padding: '1.25rem', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '1.5rem', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
@@ -521,6 +531,6 @@ export default function Atributos() {
           </div>
         </div>
       )}
-    </div>
+    </PageLayout>
   );
 }

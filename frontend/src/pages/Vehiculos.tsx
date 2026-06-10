@@ -1,3 +1,4 @@
+import PageLayout from '../components/ui/PageLayout';
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
 
@@ -86,6 +87,7 @@ export default function Vehiculos() {
   const [editingVehiculo, setEditingVehiculo] = useState<any>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [printTarget, setPrintTarget] = useState<any>(null);
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
 
   // Form state for editing/creating
   const [form, setForm] = useState<any>({
@@ -184,9 +186,9 @@ export default function Vehiculos() {
 
       const result = await response.json();
       setForm((prev: any) => ({ ...prev, imagen: result.filePath }));
-      alert('📸 Imagen subida correctamente');
+      alert('Imagen subida correctamente');
     } catch (err: any) {
-      alert('⚠️ Error al subir la imagen: ' + err.message);
+      alert('Error al subir la imagen: ' + err.message);
     } finally {
       setUploading(false);
     }
@@ -228,12 +230,12 @@ export default function Vehiculos() {
           imagen: form.imagen
         }
       });
-      alert('🚗 Ficha de vehículo guardada correctamente');
+      alert('Ficha de vehículo guardada correctamente');
       setIsCreating(false);
       setEditingVehiculo(null);
       refetch();
     } catch (err: any) {
-      alert('❌ Error al guardar: ' + err.message);
+      alert('Error al guardar: ' + err.message);
     } finally {
       setSaving(false);
     }
@@ -354,13 +356,79 @@ export default function Vehiculos() {
     }
   }, [printTarget]);
 
+  useEffect(() => {
+    const closeDropdown = () => setOpenDropdownId(null);
+    window.addEventListener('click', closeDropdown);
+    return () => window.removeEventListener('click', closeDropdown);
+  }, []);
+
   if (loading) return <div className="loading">Cargando flota de vehículos...</div>;
   if (error) return <div className="error">Error: {error.message}</div>;
 
   const vehiculosList = filteredVehiculos;
 
   return (
-    <div className="vehiculos-page">
+    <PageLayout
+      title="Flota de Vehículos"
+      actions={[
+        { label: 'Registrar Ficha', icon: '+', variant: 'primary' as const, onClick: handleCreateClick },
+        { label: 'Exportar CSV', icon: '↓', onClick: handleExportCSV },
+        { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
+      ]}
+      toolbar={
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', width: '100%', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-label)', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Búsqueda:</span>
+            <input
+              type="text"
+              className="search-input"
+              placeholder="Buscar por placa, marca, modelo..."
+              value={busqueda}
+              onChange={e => setBusqueda(e.target.value)}
+              style={{ width: '220px' }}
+            />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-label)', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Tipo:</span>
+            <select
+              value={tipoFiltro}
+              onChange={e => setTipoFiltro(e.target.value)}
+              style={{
+                padding: '4px 6px',
+                border: '1px solid var(--border-dark)',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: '0.8rem',
+                background: 'var(--bg-white)',
+                color: 'var(--text-primary)',
+                fontFamily: 'inherit'
+              }}
+            >
+              <option value="">Todos</option>
+              {uniqueTypes.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-label)', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Marca:</span>
+            <select
+              value={marcaFiltro}
+              onChange={e => setMarcaFiltro(e.target.value)}
+              style={{
+                padding: '4px 6px',
+                border: '1px solid var(--border-dark)',
+                borderRadius: 'var(--radius-sm)',
+                fontSize: '0.8rem',
+                background: 'var(--bg-white)',
+                color: 'var(--text-primary)',
+                fontFamily: 'inherit'
+              }}
+            >
+              <option value="">Todas</option>
+              {uniqueBrands.map(b => <option key={b} value={b}>{b}</option>)}
+            </select>
+          </div>
+        </div>
+      }
+    >
       {/* CSS overrides for print layout */}
       <style>{`
         @media print {
@@ -387,161 +455,102 @@ export default function Vehiculos() {
 
       {/* RENDER NORMAL VIEW */}
       <div className="no-print">
-        {/* Header */}
-        <div className="page-header flex justify-between items-center mb-6">
-          <div>
-            <h1 className="page-title text-2xl font-bold text-slate-800">🚗 Flota de Vehículos</h1>
-            <p className="text-slate-500 text-sm">Control y ficha técnica de los vehículos y equipo motorizado de la universidad.</p>
-          </div>
-          <div className="flex gap-2">
-            <button className="btn btn-success flex items-center gap-1.5" onClick={handleExportCSV}>
-              📥 Exportar CSV
-            </button>
-            <button className="btn btn-primary" onClick={handleCreateClick}>
-              + Registrar Ficha
-            </button>
-          </div>
-        </div>
-
-        {/* Filters */}
-        <div className="bg-white border border-slate-200 rounded-xl p-4 mb-6 shadow-sm filters-panel">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1 uppercase">Búsqueda</label>
-              <input
-                type="text"
-                placeholder="Buscar por placa, marca, modelo, activo..."
-                value={busqueda}
-                onChange={e => setBusqueda(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-800 text-sm focus:outline-none focus:border-blue-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1 uppercase">Tipo de Vehículo</label>
-              <select
-                value={tipoFiltro}
-                onChange={e => setTipoFiltro(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-800 text-sm focus:outline-none focus:border-blue-500"
-              >
-                <option value="">Todos</option>
-                {uniqueTypes.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1 uppercase">Marca</label>
-              <select
-                value={marcaFiltro}
-                onChange={e => setMarcaFiltro(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-800 text-sm focus:outline-none focus:border-blue-500"
-              >
-                <option value="">Todas</option>
-                {uniqueBrands.map(b => <option key={b} value={b}>{b}</option>)}
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Grid cards */}
         {vehiculosList.length === 0 ? (
-          <div className="bg-white border border-slate-200 rounded-xl p-12 text-center text-slate-500 shadow-sm">
-            <span style={{ fontSize: '3rem' }}>🚗</span>
-            <h3 className="text-lg font-bold text-slate-700 mt-2">No se encontraron vehículos</h3>
-            <p className="text-slate-400 text-sm mt-1">Intente cambiar los filtros o registre un nuevo vehículo.</p>
+          <div className="table-empty" style={{ border: '1px solid var(--border)', background: 'var(--bg-white)', padding: '2rem', textAlign: 'center' }}>
+            <h3 style={{ fontSize: '0.95rem', fontWeight: 'bold', color: 'var(--navy)', marginBottom: '0.25rem' }}>No se encontraron vehículos</h3>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Intente cambiar los filtros o registre un nuevo vehículo.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {vehiculosList.map((v: any) => (
-              <div key={v.nroActivo?.nroActivo} className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all flex flex-col group">
-                {/* Card Image */}
-                <div className="h-44 bg-slate-100 relative overflow-hidden flex items-center justify-center border-b border-slate-100">
-                  {v.imagen ? (
-                    <img 
-                      src={`http://localhost:8000${v.imagen}`} 
-                      alt={`${v.marca} ${v.modelo}`}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      onError={(e) => {
-                        const img = e.currentTarget;
-                        if (img.src.includes('http://localhost:8000/media/')) {
-                          img.src = v.imagen; 
-                        }
-                      }}
-                    />
-                  ) : (
-                    <div className="flex flex-col items-center gap-1 text-slate-300">
-                      <span className="text-5xl">🚗</span>
-                      <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Sin Fotografía</span>
-                    </div>
-                  )}
-
-                  {/* Placa Badge */}
-                  <div className="absolute top-3 right-3 bg-slate-900/90 text-white font-mono px-3 py-1 rounded-md text-xs font-bold shadow-md border border-slate-700/50">
-                    {v.placa ? v.placa.toUpperCase() : 'SIN PLACA'}
-                  </div>
-
-                  {/* Vehicle Type */}
-                  {v.tipo && (
-                    <div className="absolute bottom-3 left-3 bg-blue-600 text-white text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shadow-sm">
-                      {v.tipo}
-                    </div>
-                  )}
-                </div>
-
-                {/* Card Body */}
-                <div className="p-4 flex-1 flex flex-col justify-between">
-                  <div>
-                    <div className="flex justify-between items-start gap-2 mb-1">
-                      <h3 className="font-bold text-slate-800 text-base leading-tight">
-                        {v.marca || 'S/M'} {v.modelo || 'S/Mod'}
-                      </h3>
-                      {v.anio && <span className="text-xs font-bold text-slate-400">{v.anio}</span>}
-                    </div>
-
-                    <div className="flex flex-col gap-1.5 mt-2">
-                      <div className="flex justify-between text-xs border-b border-slate-50 pb-1">
-                        <span className="text-slate-400">Activo:</span>
-                        <span className="font-mono font-bold text-blue-600">{v.nroActivo?.codActivo}</span>
+          <div className="table-container" style={{ overflowX: 'auto', border: '1px solid var(--border-dark)' }}>
+            <table>
+              <thead>
+                <tr>
+                  <th style={{ width: '60px' }}>Imagen</th>
+                  <th style={{ width: '120px' }}>Código Activo</th>
+                  <th>Descripción del Activo</th>
+                  <th style={{ width: '100px' }}>Placa</th>
+                  <th style={{ width: '100px' }}>Tipo</th>
+                  <th style={{ width: '120px' }}>Marca / Modelo</th>
+                  <th style={{ width: '120px' }}>Año / Color</th>
+                  <th style={{ width: '150px' }}>Chasis / Motor</th>
+                  <th style={{ width: '110px' }}>RUAT</th>
+                  <th style={{ width: '100px', textAlign: 'center' }}>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {vehiculosList.map((v: any) => (
+                  <tr key={v.nroActivo?.nroActivo}>
+                    <td style={{ textAlign: 'center', padding: '4px' }}>
+                      {v.imagen ? (
+                        <img
+                          src={`http://localhost:8000${v.imagen}`}
+                          alt="Vehículo"
+                          style={{ width: '40px', height: '30px', objectFit: 'cover', border: '1px solid var(--border-light)' }}
+                          onError={(e) => {
+                            const img = e.currentTarget;
+                            if (img.src.includes('http://localhost:8000/media/')) {
+                              img.src = v.imagen;
+                            }
+                          }}
+                        />
+                      ) : (
+                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', border: '1px dashed var(--border-light)', padding: '4px 2px', textTransform: 'uppercase', fontWeight: 'bold', width: '40px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto' }}>
+                          S/F
+                        </div>
+                      )}
+                    </td>
+                    <td style={{ fontFamily: 'monospace', fontWeight: 'bold', color: 'var(--navy)' }}>
+                      {v.nroActivo?.codActivo}
+                    </td>
+                    <td>{v.nroActivo?.descripcion}</td>
+                    <td style={{ fontFamily: 'monospace', fontWeight: 'bold', textTransform: 'uppercase' }}>
+                      {v.placa ? v.placa.toUpperCase() : 'SIN PLACA'}
+                    </td>
+                    <td style={{ textTransform: 'uppercase', fontSize: '0.75rem' }}>{v.tipo || '-'}</td>
+                    <td>{v.marca || '-'} / {v.modelo || '-'}</td>
+                    <td>{v.anio || '-'} / {v.color || '-'}</td>
+                    <td style={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
+                      C: {v.chasis || '-'}<br />
+                      M: {v.motor || '-'}
+                    </td>
+                    <td style={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>{v.ruat || '-'}</td>
+                    <td style={{ textAlign: 'center', position: 'relative' }}>
+                      <div className="action-dropdown-wrapper">
+                        <button
+                          className="btn btn-secondary btn-sm"
+                          style={{ padding: '3px 6px', fontSize: '0.75rem' }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setOpenDropdownId(openDropdownId === String(v.nroActivo?.nroActivo) ? null : String(v.nroActivo?.nroActivo));
+                          }}
+                        >
+                          Acciones ▾
+                        </button>
+                        {openDropdownId === String(v.nroActivo?.nroActivo) && (
+                          <ul className="action-dropdown-menu" style={{ textAlign: 'left' }}>
+                            <li>
+                              <button onClick={() => { setOpenDropdownId(null); setSelectedVehiculo(v); }}>
+                                Ver Ficha
+                              </button>
+                            </li>
+                            <li>
+                              <button onClick={() => { setOpenDropdownId(null); handleEditClick(v); }}>
+                                Editar Ficha
+                              </button>
+                            </li>
+                            <li>
+                              <button onClick={() => { setOpenDropdownId(null); handlePrint(v); }}>
+                                Imprimir Ficha
+                              </button>
+                            </li>
+                          </ul>
+                        )}
                       </div>
-                      <div className="flex justify-between text-xs border-b border-slate-50 pb-1">
-                        <span className="text-slate-400">Chasis:</span>
-                        <span className="text-slate-700 font-mono text-[11px]">{v.chasis || '-'}</span>
-                      </div>
-                      <div className="flex justify-between text-xs border-b border-slate-50 pb-1">
-                        <span className="text-slate-400">Motor:</span>
-                        <span className="text-slate-700 font-mono text-[11px]">{v.motor || '-'}</span>
-                      </div>
-                      <div className="flex justify-between text-xs">
-                        <span className="text-slate-400">Color / Cil.:</span>
-                        <span className="text-slate-700 font-medium">{v.color || '-'} {v.cilindrada ? `/ ${v.cilindrada} cc` : ''}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Card Actions */}
-                  <div className="mt-4 pt-3 border-t border-slate-100 flex gap-2">
-                    <button 
-                      className="btn btn-secondary btn-sm flex-1"
-                      onClick={() => setSelectedVehiculo(v)}
-                    >
-                      👁️ Ficha
-                    </button>
-                    <button 
-                      className="btn btn-warning btn-sm"
-                      style={{ backgroundColor: '#f59e0b', color: 'white' }}
-                      onClick={() => handleEditClick(v)}
-                    >
-                      ✏️
-                    </button>
-                    <button 
-                      className="btn btn-primary btn-sm"
-                      style={{ backgroundColor: '#10b981', borderColor: '#10b981' }}
-                      onClick={() => handlePrint(v)}
-                    >
-                      🖨️
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
@@ -549,25 +558,26 @@ export default function Vehiculos() {
       {/* DETAIL MODAL (FICHA TÉCNICA VIEW) */}
       {selectedVehiculo && (
         <div className="modal-overlay" onClick={() => setSelectedVehiculo(null)}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ width: '750px', maxWidth: '95vw', background: '#ffffff', color: '#1e293b', padding: '1.5rem' }}>
-            <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-200">
-              <h2 className="text-lg font-bold text-slate-800">📄 Ficha Técnica Vehicular</h2>
+          <div className="modal modal-lg" onClick={e => e.stopPropagation()}>
+            <div className="modal-title">
+              <span>Ficha Técnica Vehicular</span>
               <button 
                 onClick={() => setSelectedVehiculo(null)} 
-                className="text-slate-400 hover:text-slate-600 text-xl font-bold"
+                className="modal-close"
               >
                 ✕
               </button>
             </div>
 
-            {/* Print Area Preview */}
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 shadow-inner overflow-y-auto max-height-[70vh]">
-              <PrintableSheet vehicle={selectedVehiculo} />
+            <div className="modal-body" style={{ maxHeight: '72vh', overflowY: 'auto' }}>
+              <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', padding: '1rem', overflowY: 'auto' }}>
+                <PrintableSheet vehicle={selectedVehiculo} />
+              </div>
             </div>
 
-            <div className="modal-actions mt-4 pt-3 border-t border-slate-200 flex justify-end gap-2">
+            <div className="modal-actions">
               <button className="btn btn-primary" onClick={() => handlePrint(selectedVehiculo)}>
-                🖨️ Imprimir Ficha
+                Imprimir Ficha
               </button>
               <button className="btn btn-secondary" onClick={() => setSelectedVehiculo(null)}>
                 Cerrar
@@ -580,25 +590,23 @@ export default function Vehiculos() {
       {/* EDIT / CREATE MODAL */}
       {(editingVehiculo || isCreating) && (
         <div className="modal-overlay" onClick={() => { setEditingVehiculo(null); setIsCreating(false); }}>
-          <div className="modal-container" onClick={e => e.stopPropagation()} style={{ width: '800px', maxWidth: '95vw', padding: '1.5rem', background: '#ffffff', color: '#1e293b' }}>
-            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '2px solid #f0f2f5', paddingBottom: '0.5rem', background: '#ffffff' }}>
-              <h2 className="modal-title" style={{ margin: 0, color: '#1a3c6e' }}>
-                {isCreating ? '🚗 Registrar Ficha Técnica de Vehículo' : '✏️ Editar Ficha Técnica de Vehículo'}
-              </h2>
+          <div className="modal modal-lg" onClick={e => e.stopPropagation()}>
+            <div className="modal-title">
+              <span>{isCreating ? 'Registrar Ficha Técnica de Vehículo' : 'Editar Ficha Técnica de Vehículo'}</span>
               <button className="modal-close" onClick={() => { setEditingVehiculo(null); setIsCreating(false); }}>✕</button>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', maxHeight: '70vh', overflowY: 'auto', paddingRight: '6px' }}>
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', maxHeight: '70vh', overflowY: 'auto' }}>
               
               {/* Asset Selector (Only on Creation) */}
               <div className="form-group">
-                <label style={{ fontWeight: 600 }}>Activo Fijo Relacionado *</label>
+                <label>Activo Fijo Relacionado *</label>
                 {isCreating ? (
                   <select 
                     name="nroActivo" 
                     value={form.nroActivo} 
                     onChange={handleChange}
-                    style={{ width: '100%', padding: '0.5rem', borderRadius: '6px' }}
+                    style={{ width: '100%' }}
                   >
                     <option value="">Seleccionar activo...</option>
                     {availableAssets.map((a: any) => (
@@ -608,19 +616,17 @@ export default function Vehiculos() {
                     ))}
                   </select>
                 ) : (
-                  <div style={{ background: '#f8fafc', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                    <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: '#1a3c6e' }}>
-                      [{editingVehiculo?.nroActivo?.codActivo}] {editingVehiculo?.nroActivo?.descripcion}
-                    </p>
+                  <div style={{ background: 'var(--blue-pale)', padding: '6px 10px', border: '1px solid var(--border-light)', fontSize: '0.85rem', fontWeight: 600, color: 'var(--navy)' }}>
+                    [{editingVehiculo?.nroActivo?.codActivo}] {editingVehiculo?.nroActivo?.descripcion}
                   </div>
                 )}
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1.5rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1rem' }}>
                 {/* Image and Upload */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center', background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                  <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>Fotografía</span>
-                  <div style={{ width: '100%', height: '140px', background: '#f1f5f9', borderRadius: '6px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px dashed #cbd5e1', position: 'relative' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'center', background: 'var(--bg-panel)', padding: '8px', border: '1px solid var(--border-light)' }}>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-label)', fontWeight: 700, textTransform: 'uppercase' }}>Fotografía</span>
+                  <div style={{ width: '100%', height: '120px', background: 'var(--bg-white)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px dashed var(--border)', position: 'relative' }}>
                     {form.imagen ? (
                       <img 
                         src={`http://localhost:8000${form.imagen}`} 
@@ -634,22 +640,22 @@ export default function Vehiculos() {
                         }}
                       />
                     ) : (
-                      <span style={{ color: '#94a3b8', fontSize: '2.5rem' }}>🚗</span>
+                      <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: 'bold' }}>SIN FOTO</span>
                     )}
                     {uploading && (
-                      <div style={{ position: 'absolute', inset: 0, background: 'rgba(241, 245, 249, 0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', color: '#1a3c6e' }}>
+                      <div style={{ position: 'absolute', inset: 0, background: 'rgba(255, 255, 255, 0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', color: 'var(--navy)', fontWeight: 'bold' }}>
                         Subiendo...
                       </div>
                     )}
                   </div>
-                  <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer', textAlign: 'center', width: '100%', display: 'block' }}>
+                  <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer', textAlign: 'center', width: '100%', display: 'block', padding: '4px' }}>
                     {form.imagen ? 'Cambiar Foto' : 'Subir Foto'}
                     <input type="file" accept="image/*" onChange={handleImageUpload} style={{ display: 'none' }} />
                   </label>
                 </div>
 
                 {/* Grid of Main Fields */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div className="form-grid">
                   <div className="form-group">
                     <label>Tipo de Vehículo</label>
                     <input type="text" name="tipo" value={form.tipo} onChange={handleChange} placeholder="Ej: Camioneta, Sedan" />
@@ -677,10 +683,8 @@ export default function Vehiculos() {
                 </div>
               </div>
 
-              <hr style={{ border: 'none', borderTop: '1px solid #e2e8f0', margin: '0.25rem 0' }} />
-
-              <h3 style={{ fontSize: '0.9rem', color: '#1a3c6e', margin: 0, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Identificación y Mecánica</h3>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
+              <div className="section-bar" style={{ margin: '4px 0 2px 0' }}>Identificación y Mecánica</div>
+              <div className="form-grid form-grid-3">
                 <div className="form-group">
                   <label>Motor</label>
                   <input type="text" name="motor" value={form.motor} onChange={handleChange} placeholder="Nro de Motor" />
@@ -707,10 +711,8 @@ export default function Vehiculos() {
                 </div>
               </div>
 
-              <hr style={{ border: 'none', borderTop: '1px solid #e2e8f0', margin: '0.25rem 0' }} />
-
-              <h3 style={{ fontSize: '0.9rem', color: '#1a3c6e', margin: 0, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Documentación y Resoluciones</h3>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
+              <div className="section-bar" style={{ margin: '4px 0 2px 0' }}>Documentación y Resoluciones</div>
+              <div className="form-grid form-grid-3">
                 <div className="form-group">
                   <label>Póliza</label>
                   <input type="text" name="poliza" value={form.poliza} onChange={handleChange} placeholder="Nro de Póliza" />
@@ -759,11 +761,13 @@ export default function Vehiculos() {
 
             </div>
 
-            <div className="modal-actions" style={{ borderTop: '1px solid #f0f2f5', marginTop: '1rem', paddingTop: '0.75rem' }}>
+            <div className="modal-actions">
               <button className="btn btn-primary" onClick={handleSave} disabled={saving || uploading}>
                 {saving ? 'Guardando...' : 'Guardar Ficha'}
               </button>
-              <button className="btn btn-secondary" onClick={() => { setEditingVehiculo(null); setIsCreating(false); }} disabled={saving}>Cancelar</button>
+              <button className="btn btn-secondary" onClick={() => { setEditingVehiculo(null); setIsCreating(false); }} disabled={saving}>
+                Cancelar
+              </button>
             </div>
           </div>
         </div>
@@ -775,7 +779,7 @@ export default function Vehiculos() {
           <PrintableSheet vehicle={printTarget} />
         </div>
       )}
-    </div>
+    </PageLayout>
   );
 }
 
@@ -788,7 +792,6 @@ function PrintableSheet({ vehicle }: { vehicle: any }) {
       {/* Institution Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #0f172a', paddingBottom: '10px', marginBottom: '15px' }}>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <span style={{ fontSize: '32px' }}>🏛️</span>
           <div>
             <h1 style={{ margin: 0, fontSize: '13px', fontWeight: 'bold', letterSpacing: '0.5px' }}>UNIVERSIDAD AUTÓNOMA GABRIEL RENÉ MORENO</h1>
             <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#4a5568' }}>Dirección Universitaria de Activos Fijos</p>
@@ -868,7 +871,7 @@ function PrintableSheet({ vehicle }: { vehicle: any }) {
                 }}
               />
             ) : (
-              <span style={{ fontSize: '40px' }}>🚗</span>
+              <div style={{ color: '#94a3b8', fontSize: '10px', fontWeight: 'bold' }}>SIN FOTO</div>
             )}
           </div>
           <span style={{ fontSize: '9px', color: '#64748b', fontWeight: 'bold', textTransform: 'uppercase' }}>FOTOGRAFÍA REGISTRADA</span>

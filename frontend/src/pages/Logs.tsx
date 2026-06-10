@@ -1,3 +1,4 @@
+import PageLayout from '../components/ui/PageLayout';
 import React, { useState, useMemo } from 'react';
 import { useQuery, gql } from '@apollo/client';
 
@@ -120,13 +121,23 @@ export default function Logs() {
   const [paginaActual, setPaginaActual] = useState(1);
 
   // Queries executed conditionally using skip
-  const { data: dataActivos, loading: loadingActivos } = useQuery(GET_LOGS_ACTIVOS, { skip: activeTab !== 'activos' });
-  const { data: dataIngresos, loading: loadingIngresos } = useQuery(GET_LOGS_INGRESOS, { skip: activeTab !== 'ingresos' });
-  const { data: dataAsignados, loading: loadingAsignados } = useQuery(GET_LOGS_ASIGNADOS, { skip: activeTab !== 'asignaciones' });
-  const { data: dataDetAsig, loading: loadingDetAsig } = useQuery(GET_LOGS_DET_ASIG, { skip: activeTab !== 'det_asignaciones' });
-  const { data: dataOficina, loading: loadingOficina } = useQuery(GET_LOGS_OFICINA, { skip: activeTab !== 'oficinas' });
-  const { data: dataDetReval, loading: loadingDetReval } = useQuery(GET_LOGS_DET_REVAL, { skip: activeTab !== 'revaluos' });
-  const { data: dataBajaAct, loading: loadingBajaAct } = useQuery(GET_LOGS_BAJA_ACT, { skip: activeTab !== 'bajas' });
+  const { data: dataActivos, loading: loadingActivos, refetch: refetchActivos } = useQuery(GET_LOGS_ACTIVOS, { skip: activeTab !== 'activos' });
+  const { data: dataIngresos, loading: loadingIngresos, refetch: refetchIngresos } = useQuery(GET_LOGS_INGRESOS, { skip: activeTab !== 'ingresos' });
+  const { data: dataAsignados, loading: loadingAsignados, refetch: refetchAsignados } = useQuery(GET_LOGS_ASIGNADOS, { skip: activeTab !== 'asignaciones' });
+  const { data: dataDetAsig, loading: loadingDetAsig, refetch: refetchDetAsig } = useQuery(GET_LOGS_DET_ASIG, { skip: activeTab !== 'det_asignaciones' });
+  const { data: dataOficina, loading: loadingOficina, refetch: refetchOficina } = useQuery(GET_LOGS_OFICINA, { skip: activeTab !== 'oficinas' });
+  const { data: dataDetReval, loading: loadingDetReval, refetch: refetchDetReval } = useQuery(GET_LOGS_DET_REVAL, { skip: activeTab !== 'revaluos' });
+  const { data: dataBajaAct, loading: loadingBajaAct, refetch: refetchBajaAct } = useQuery(GET_LOGS_BAJA_ACT, { skip: activeTab !== 'bajas' });
+
+  const handleRefresh = () => {
+    if (activeTab === 'activos' && refetchActivos) refetchActivos();
+    if (activeTab === 'ingresos' && refetchIngresos) refetchIngresos();
+    if (activeTab === 'asignaciones' && refetchAsignados) refetchAsignados();
+    if (activeTab === 'det_asignaciones' && refetchDetAsig) refetchDetAsig();
+    if (activeTab === 'oficinas' && refetchOficina) refetchOficina();
+    if (activeTab === 'revaluos' && refetchDetReval) refetchDetReval();
+    if (activeTab === 'bajas' && refetchBajaAct) refetchBajaAct();
+  };
 
   // Get active dataset and loading state
   const { currentList, loading } = useMemo(() => {
@@ -242,13 +253,14 @@ export default function Logs() {
   };
 
   return (
-    <div className="logs-page">
-      <div className="page-header mb-6">
-        <div>
-          <h1 className="page-title text-2xl font-bold text-slate-800">🗃️ Bitácora de Transacciones</h1>
-          <p className="text-slate-500 text-sm">Historial y auditoría de los movimientos registrados en las tablas del sistema.</p>
-        </div>
-      </div>
+    <PageLayout
+      title="Bitácora de Transacciones"
+      subtitle="Historial y auditoría de los movimientos registrados en las tablas del sistema."
+      actions={[
+        { label: 'Actualizar', icon: '↺', onClick: handleRefresh },
+      ]}
+    >
+
 
       {/* TABS HEADER */}
       <div style={{ display: 'flex', gap: '4px', borderBottom: '2px solid #e2e8f0', marginBottom: '1.25rem', overflowX: 'auto', paddingBottom: '2px' }}>
@@ -534,6 +546,6 @@ export default function Logs() {
           </div>
         </div>
       )}
-    </div>
+    </PageLayout>
   );
 }

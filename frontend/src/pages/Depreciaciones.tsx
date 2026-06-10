@@ -1,3 +1,4 @@
+import PageLayout from '../components/ui/PageLayout';
 import React, { useState } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
 import { GET_DEPRECIACIONES_DATA, GET_DEP_ACUMULADA } from '../graphql/queries';
@@ -62,10 +63,13 @@ export default function Depreciaciones() {
   };
 
   return (
-    <div>
-      <div className="page-header">
-        <h1 className="page-title">📉 Módulo de Depreciaciones de Activos Fijos</h1>
-      </div>
+    <PageLayout
+      title="Módulo de Depreciaciones de Activos Fijos"
+      actions={[
+        { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
+      ]}
+    >
+
 
       {/* Stats Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(165px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
@@ -318,7 +322,7 @@ export default function Depreciaciones() {
           )}
         </div>
       )}
-    </div>
+    </PageLayout>
   );
 }
 

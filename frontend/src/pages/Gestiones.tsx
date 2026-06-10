@@ -1,3 +1,4 @@
+import PageLayout from '../components/ui/PageLayout';
 import React, { useState } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
 
@@ -124,13 +125,13 @@ export default function Gestiones() {
   if (error) return <div className="error">Error: {error.message}</div>;
 
   return (
-    <div>
-      <div className="page-header">
-        <h1 className="page-title">📅 Gestiones</h1>
-        <button className="btn btn-primary" onClick={abrirNuevo}>
-          + Nueva Gestión
-        </button>
-      </div>
+    <PageLayout
+      title="Gestiones"
+      actions={[
+        { label: 'Nuevo', icon: '+', variant: 'primary' as const, onClick: abrirNuevo },
+        { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
+      ]}
+    >
 
       <div className="table-container">
         <table>
@@ -221,6 +222,6 @@ export default function Gestiones() {
           </div>
         </div>
       )}
-    </div>
+    </PageLayout>
   );
 }

@@ -50,7 +50,7 @@ export default function Topbar({ onLogout }: TopbarProps) {
       </div>
       <div className="topbar-right">
         <div className="topbar-user">
-          <span className="topbar-user-icon">👤</span>
+          <span className="topbar-user-icon">&#9689;</span>
           <span className="topbar-user-email">{user?.email}</span>
         </div>
         <button className="topbar-logout-btn" onClick={onLogout}>

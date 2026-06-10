@@ -1,3 +1,4 @@
+import PageLayout from '../components/ui/PageLayout';
 import React, { useState } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
 import { GET_UFVS } from '../graphql/queries';
@@ -73,16 +74,15 @@ export default function Ufvs() {
   };
 
   return (
-    <div>
-      <div className="page-header">
-        <div>
-          <h1 className="page-title">📊 Tasas UFV (Unidad de Fomento de Vivienda)</h1>
-          <p style={{ fontSize: '0.85rem', color: '#64748b', margin: '0.25rem 0 0 0' }}>
-            Gestiona el valor diario de la UFV en Bolivia para la indexación y actualización contable de activos.
-          </p>
-        </div>
-        <button className="btn btn-primary" onClick={handleOpenAdd}>+ Registrar Tasa</button>
-      </div>
+    <PageLayout
+      title="Tasas UFV (Unidad de Fomento de Vivienda)"
+      actions={[
+        { label: 'Nuevo', icon: '+', variant: 'primary' as const, onClick: handleOpenAdd },
+        { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
+      ]}
+      subtitle="Gestiona el valor diario de la UFV en Bolivia para la indexación y actualización contable de activos."
+    >
+
 
       {/* Filter and stats */}
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.5rem', marginBottom: '1.5rem', alignItems: 'center' }}>
@@ -113,7 +113,7 @@ export default function Ufvs() {
             color: '#1e3a8a',
             fontWeight: 600
           }}>
-            Última UFV registrada: <strong style={{ fontSize: '0.9rem', color: '#2563eb' }}>{tasasList[0].ufv}</strong> ({tasasList[0].fecha})
+            Última UFV registrada: <strong style={{ fontSize: '0.9rem', color: '#2563eb' }}>{parseFloat(String(tasasList[0].ufv || 0)).toFixed(6)}</strong> ({tasasList[0].fecha})
           </div>
         )}
       </div>
@@ -143,7 +143,7 @@ export default function Ufvs() {
                   </span>
                 </td>
                 <td style={{ fontSize: '0.95rem', fontWeight: 700, color: '#1e3a8a' }}>
-                  {t.ufv.toFixed(6)}
+                  {parseFloat(String(t.ufv || 0)).toFixed(6)}
                 </td>
                 <td>
                   <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
@@ -218,6 +218,6 @@ export default function Ufvs() {
           </div>
         </div>
       )}
-    </div>
+    </PageLayout>
   );
 }

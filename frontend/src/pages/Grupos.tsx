@@ -1,3 +1,4 @@
+import PageLayout from '../components/ui/PageLayout';
 import React, { useState } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
 import { GET_GRUPOS } from '../graphql/queries';
@@ -158,12 +159,14 @@ export default function Grupos() {
   if (error) return <div className="error">Error: {error.message}</div>;
 
   return (
-    <div>
-      <div className="page-header">
-        <h1 className="page-title">📁 Grupos de Activos</h1>
-        <button
-          className="btn btn-primary"
-          onClick={() => {
+    <PageLayout
+      title="Grupos de Activos"
+      actions={[
+        {
+          label: 'Nuevo',
+          icon: '+',
+          variant: 'primary' as const,
+          onClick: () => {
             setEditId(null);
             setForm({
               codHijo: '',
@@ -175,11 +178,12 @@ export default function Grupos() {
               codigoContable: '',
             });
             setShowModal(true);
-          }}
-        >
-          + Nuevo Grupo
-        </button>
-      </div>
+          }
+        },
+        { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
+      ]}
+    >
+
 
       {/* Leyenda de niveles */}
       <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
@@ -274,6 +278,6 @@ export default function Grupos() {
           </div>
         </div>
       )}
-    </div>
+    </PageLayout>
   );
 }

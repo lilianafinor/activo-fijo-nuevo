@@ -1,3 +1,4 @@
+import PageLayout from '../components/ui/PageLayout';
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
 import { GET_REVALUOS, GET_CATALOGOS } from '../graphql/queries';
@@ -317,20 +318,23 @@ export default function Revaluos() {
   if (error) return <div className="error">Error: {error.message}</div>;
 
   return (
-    <div>
-      <div className="page-header">
-        <h1 className="page-title">📊 Revalúos y Depreciaciones</h1>
-        <button
-          className="btn btn-primary"
-          onClick={() => {
+    <PageLayout
+      title="Revalúos y Depreciaciones"
+      actions={[
+        {
+          label: 'Nuevo',
+          icon: '+',
+          variant: 'primary' as const,
+          onClick: () => {
             setFormRevaluo({ tipoReval: '1', documento: '', fechaIni: '' });
             setSelectedFile(null);
             setShowModal(true);
-          }}
-        >
-          + Nuevo Revalúo
-        </button>
-      </div>
+          }
+        },
+        { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
+      ]}
+    >
+
 
       {/* Barra de Filtros y Búsqueda (Estilo Ingresos) */}
       <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', alignItems: 'center', background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
@@ -745,6 +749,6 @@ export default function Revaluos() {
           </div>
         </div>
       )}
-    </div>
+    </PageLayout>
   );
 }

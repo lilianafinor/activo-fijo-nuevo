@@ -1,3 +1,4 @@
+import PageLayout from '../components/ui/PageLayout';
 import React, { useState } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
 
@@ -187,11 +188,13 @@ export default function Proveedores() {
   if (error) return <div className="error">Error: {error.message}</div>;
 
   return (
-    <div>
-      <div className="page-header">
-        <h1 className="page-title">🏢 Proveedores y Contactos</h1>
-        <button className="btn btn-primary" onClick={abrirNuevoProv}>+ Nuevo Proveedor</button>
-      </div>
+    <PageLayout
+      title="Proveedores y Contactos"
+      actions={[
+        { label: 'Nuevo', icon: '+', variant: 'primary' as const, onClick: abrirNuevoProv },
+        { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
+      ]}
+    >
 
       <div className="table-container">
         <table>
@@ -451,6 +454,6 @@ export default function Proveedores() {
           </div>
         </div>
       )}
-    </div>
+    </PageLayout>
   );
 }

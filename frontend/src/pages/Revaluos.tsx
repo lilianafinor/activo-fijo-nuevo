@@ -1,122 +1,13 @@
 import React, { useState, useMemo } from 'react';
-import { useQuery, useMutation, gql } from '@apollo/client';
-
-// ==================== QUERIES & MUTATIONS ====================
-const GET_REVALUOS = gql`
-  query GetRevaluos {
-    todosRevaluos {
-      codReval
-      tipoReval
-      documento
-      fechaIni
-      fechaFin
-      estado
-      inDetRevalSet {
-        vidaUtilMes
-        vidaUtilAno
-        costo
-        fechaReval
-        estado
-        nroActivo {
-          nroActivo
-          codActivo
-          descripcion
-          monto
-        }
-      }
-    }
-  }
-`;
-
-const GET_CATALOGOS = gql`
-  query GetCatalogos {
-    todosActivos {
-      nroActivo
-      codActivo
-      descripcion
-      monto
-    }
-  }
-`;
-
-const CREAR_REVALUO = gql`
-  mutation CrearRevaluo($tipoReval: Int!, $documento: String, $fechaIni: Date!) {
-    crearRevaluo(tipoReval: $tipoReval, documento: $documento, fechaIni: $fechaIni) {
-      revaluo {
-        codReval
-        tipoReval
-        fechaIni
-        estado
-      }
-    }
-  }
-`;
-
-const EDITAR_REVALUO = gql`
-  mutation EditarRevaluo($codReval: Int!, $documento: String, $fechaFin: Date, $estado: String) {
-    editarRevaluo(codReval: $codReval, documento: $documento, fechaFin: $fechaFin, estado: $estado) {
-      revaluo {
-        codReval
-        documento
-        estado
-      }
-    }
-  }
-`;
-
-const ANULAR_REVALUO = gql`
-  mutation AnularRevaluo($codReval: Int!) {
-    anularRevaluo(codReval: $codReval) {
-      revaluo {
-        codReval
-        estado
-      }
-    }
-  }
-`;
-
-const AGREGAR_DET_REVAL = gql`
-  mutation AgregarDetRevalConDepreciacion(
-    $codReval: Int!,
-    $nroActivo: Int!,
-    $vidaUtilMes: Int!,
-    $vidaUtilAno: Int!,
-    $costo: Decimal!,
-    $fechaReval: Date!,
-    $nroSerie: Int!
-  ) {
-    agregarDetRevalConDepreciacion(
-      codReval: $codReval,
-      nroActivo: $nroActivo,
-      vidaUtilMes: $vidaUtilMes,
-      vidaUtilAno: $vidaUtilAno,
-      costo: $costo,
-      fechaReval: $fechaReval,
-      nroSerie: $nroSerie
-    ) {
-      detReval {
-        vidaUtilAno
-        costo
-        fechaReval
-      }
-      depAcumulada {
-        depresiacion
-        acumulada
-        valorActual
-      }
-    }
-  }
-`;
-
-const ANULAR_DET_REVAL = gql`
-  mutation AnularDetReval($codReval: Int!, $nroActivo: Int!) {
-    anularDetReval(codReval: $codReval, nroActivo: $nroActivo) {
-      detReval {
-        estado
-      }
-    }
-  }
-`;
+import { useQuery, useMutation } from '@apollo/client';
+import { GET_REVALUOS, GET_CATALOGOS } from '../graphql/queries';
+import {
+  CREAR_REVALUO,
+  EDITAR_REVALUO,
+  ANULAR_REVALUO,
+  AGREGAR_DET_REVAL,
+  ANULAR_DET_REVAL,
+} from '../graphql/mutations';
 
 const TIPO_LABEL: Record<number, string> = {
   1: 'Revalúo Técnico',

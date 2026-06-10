@@ -1,62 +1,7 @@
 import React, { useState } from 'react';
-import { useQuery, useMutation, gql } from '@apollo/client';
-
-// ==================== QUERIES & MUTATIONS ====================
-const GET_DEPRECIACIONES_DATA = gql`
-  query GetDepreciacionesData {
-    todosActivos(soloActivos: true) {
-      nroActivo
-      codActivo
-      descripcion
-      monto
-      fecAdqui
-      codGrupo {
-        codGrupo
-        desGrupo
-        tasaDepreciacion
-        vidaUtilDefault
-      }
-    }
-    ultimasDepreciaciones {
-      nroSerie
-      nroActivo {
-        nroActivo
-        codActivo
-        descripcion
-        monto
-        codGrupo {
-          desGrupo
-        }
-      }
-      depresiacion
-      acumulada
-      valorActual
-      valorRevaluo
-    }
-  }
-`;
-
-const GET_DEP_ACUMULADA = gql`
-  query GetDepAcumulada($nroActivo: Int!) {
-    depAcumuladaPorActivo(nroActivo: $nroActivo) {
-      nroSerie
-      depresiacion
-      acumulada
-      valorActual
-      valorRevaluo
-    }
-  }
-`;
-
-const CALCULAR_DEP_MASIVA = gql`
-  mutation CalcularDepreciacionMasiva($gestion: Int!, $periodo: Int!) {
-    calcularDepreciacionMasiva(gestion: $gestion, periodo: $periodo) {
-      procesados
-      omitidos
-      errores
-    }
-  }
-`;
+import { useQuery, useMutation } from '@apollo/client';
+import { GET_DEPRECIACIONES_DATA, GET_DEP_ACUMULADA } from '../graphql/queries';
+import { CALCULAR_DEP_MASIVA } from '../graphql/mutations';
 
 const MESES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',

@@ -14,6 +14,13 @@ from .atributos import in_atributo, in_det_atrib, in_atrib_activo
 from .partes_grupos import in_parte_grupo, in_mod_grp, in_det_grp, in_det_parte
 from .transferencia import in_transferido, in_det_tranf
 from .rbac import in_rol, in_permiso, in_rol_permiso, in_empleado, in_usuario, in_rol_permiso_usuario
+from .bajas import in_motivo, in_baja_act
+from .vehiculo import in_vehic
+from .ufv import in_tasa_rev
+from .logs import (
+    in_log_activo, in_log_ingreso, in_log_asignado, in_log_det_asig,
+    in_log_oficina, in_log_det_reval, in_log_baja_act
+)
 
 __all__ = [
     'in_estado', 'in_condicion', 'in_unidad', 'in_tipo_asig', 'in_tipomat', 'in_tipo',
@@ -29,5 +36,10 @@ __all__ = [
     'in_atributo', 'in_det_atrib', 'in_atrib_activo',
     'in_parte_grupo', 'in_mod_grp', 'in_det_grp', 'in_det_parte',
     'in_transferido', 'in_det_tranf',
-    'in_rol', 'in_permiso', 'in_rol_permiso', 'in_empleado', 'in_usuario', 'in_rol_permiso_usuario'
+    'in_rol', 'in_permiso', 'in_rol_permiso', 'in_empleado', 'in_usuario', 'in_rol_permiso_usuario',
+    'in_motivo', 'in_baja_act',
+    'in_vehic',
+    'in_tasa_rev',
+    'in_log_activo', 'in_log_ingreso', 'in_log_asignado', 'in_log_det_asig',
+    'in_log_oficina', 'in_log_det_reval', 'in_log_baja_act'
 ]

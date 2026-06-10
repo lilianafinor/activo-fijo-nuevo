@@ -15,7 +15,9 @@ from ..models import (
     in_atributo, in_det_atrib, in_atrib_activo,
     in_parte_grupo, in_mod_grp, in_det_grp, in_det_parte,
     in_transferido, in_det_tranf,
-    in_rol, in_permiso, in_rol_permiso, in_empleado, in_usuario, in_rol_permiso_usuario
+    in_rol, in_permiso, in_rol_permiso, in_empleado, in_usuario, in_rol_permiso_usuario,
+    in_vehic, in_tasa_rev, in_baja_act, in_motivo, in_log_baja_act,
+    in_log_activo, in_log_ingreso, in_log_asignado, in_log_det_asig, in_log_oficina, in_log_det_reval
 )
 from .types import (
     InEstadoType, InCondicionType, InUnidadType, InTipoAsigType, InTipomatType, InTipoType,
@@ -25,7 +27,8 @@ from .types import (
     InAsignadoType, InDetAsigType, InEncargadoType, InDetRevalType, InDepAcumuladaType, InAtributoType,
     InDetAtribType, InAtribActivoType, InParteGrupoType, InModGrpType, InDetGrpType, InDetParteType,
     InTransferidoType, InDetTranfType,
-    InRolType, InPermisoType, InRolPermisoType, InEmpleadoType, InUsuarioType, InRolPermisoUsuarioType
+    InRolType, InPermisoType, InRolPermisoType, InEmpleadoType, InUsuarioType, InRolPermisoUsuarioType,
+    InVehicType, InTasaRevType, InBajaActType, InMotivoType
 )
 
 
@@ -466,6 +469,35 @@ class DarDeBajaGrupo(graphene.Mutation):
         return DarDeBajaGrupo(grupo=obj)
 
 # ── in_oficina ─────────────────────────────────────────────────
+def registrar_log_oficina(obj, tipo_me, info=None):
+    from django.utils import timezone
+    from .auth_helper import get_authenticated_user
+    cod_emp_me = None
+    tipo_per_me = None
+    if info:
+        try:
+            user = get_authenticated_user(info)
+            if user and user.cod_emp:
+                cod_emp_me = user.cod_emp.id_empleado
+                tipo_per_me = 1
+        except Exception:
+            pass
+    in_log_oficina.objects.create(
+        cod_ofic=obj.cod_ofic,
+        cod_dpto=obj.cod_dpto[:5] if obj.cod_dpto else '',
+        des_dpto=obj.des_dpto[:60] if obj.des_dpto else '',
+        cod_padre=obj.cod_padre_id if obj.cod_padre_id is not None else 0,
+        tipo_act=obj.tipo_act if obj.tipo_act is not None else 1,
+        cod_activ=obj.cod_activ[:8] if obj.cod_activ else '',
+        nivel=obj.nivel if obj.nivel is not None else 1,
+        cod_gest=obj.cod_gest if obj.cod_gest is not None else 1,
+        a_b=obj.a_b,
+        tipo_per_me=tipo_per_me,
+        cod_emp_me=cod_emp_me,
+        fecha_me=timezone.now(),
+        tipo_me=tipo_me
+    )
+
 class CrearOficina(graphene.Mutation):
     class Arguments:
         cod_dpto  = graphene.String(required=True)
@@ -481,6 +513,7 @@ class CrearOficina(graphene.Mutation):
             cod_dpto=cod_dpto, des_dpto=des_dpto, cod_padre_id=cod_padre,
             tipo_act=tipo_act, cod_activ=cod_activ, nivel=nivel_calculado, cod_gest=cod_gest, a_b='A'
         )
+        registrar_log_oficina(obj, 'I', info)
         return CrearOficina(oficina=obj)
 
 class EditarOficina(graphene.Mutation):
@@ -513,6 +546,7 @@ class EditarOficina(graphene.Mutation):
         if tipo_act  is not None: obj.tipo_act = tipo_act
         if cod_activ is not None: obj.cod_activ = cod_activ
         obj.save()
+        registrar_log_oficina(obj, 'U', info)
         return EditarOficina(oficina=obj)
 
 class DarDeBajaOficina(graphene.Mutation):
@@ -525,6 +559,7 @@ class DarDeBajaOficina(graphene.Mutation):
             raise Exception("No se puede dar de baja esta oficina porque tiene suboficinas activas dependientes.")
         obj.a_b = 'B'
         obj.save()
+        registrar_log_oficina(obj, 'D', info)
         return DarDeBajaOficina(oficina=obj)
 
 
@@ -866,6 +901,47 @@ class AnularOrdenCompra(graphene.Mutation):
 # MUTATIONS — INGRESO DE BIENES
 # ═══════════════════════════════════════════════════════════════
 
+def registrar_log_ingreso(obj, tipo_log_str, tipo_trans_int):
+    in_log_ingreso.objects.create(
+        nro_ingreso=obj.nro_ingreso,
+        gestion=obj.gestion,
+        tipo_ingreso=obj.tipo_ingreso,
+        tipo_recur=obj.tipo_recur,
+        tipo_desc=obj.tipo_desc,
+        acta_recep=obj.acta_recep,
+        fecha_recep=obj.fecha_recep,
+        tipo_emp_recep=obj.tipo_emp_recep,
+        cod_emp_recep=obj.cod_emp_recep,
+        cod_prov=obj.cod_prov_id,
+        cod_cont=obj.cod_cont_id if hasattr(obj, 'cod_cont') else None,
+        cod_ofic_dest=obj.cod_ofic_dest_id,
+        tipo_emp_dest=obj.tipo_emp_dest,
+        cod_emp_dest=obj.cod_emp_dest,
+        tipo_emp_codi=obj.tipo_emp_codi if hasattr(obj, 'tipo_emp_codi') else None,
+        cod_emp_codi=obj.cod_emp_codi if hasattr(obj, 'cod_emp_codi') else None,
+        tipo_emp_enc=obj.tipo_emp_enc if hasattr(obj, 'tipo_emp_enc') else None,
+        cod_emp_enc=obj.cod_emp_enc if hasattr(obj, 'cod_emp_enc') else None,
+        glosa=obj.glosa,
+        nro_compra=obj.nro_compra,
+        fecha_compra=obj.fecha_compra if hasattr(obj, 'fecha_compra') else None,
+        nro_egreso=obj.nro_egreso,
+        fecha_egreso=obj.fecha_egreso,
+        nro_factura=obj.nro_factura,
+        fecha_factura=obj.fecha_factura,
+        nro_doc_rpa=obj.nro_doc_rpa if hasattr(obj, 'nro_doc_rpa') else None,
+        fecha_doc_rpa=obj.fecha_doc_rpa if hasattr(obj, 'fecha_doc_rpa') else None,
+        cod_trans=obj.nro_ingreso,
+        tipo_trans=tipo_trans_int,
+        fecha_trans=timezone.now(),
+        cod_gest=obj.gestion if obj.gestion else 1,
+        estado=obj.estado,
+        cod_asig=None,
+        fecha_m_e=timezone.now(),
+        cod_trans_m_e=obj.nro_ingreso,
+        tipo_trans_m_e=tipo_trans_int,
+        tipo_m_e=tipo_log_str
+    )
+
 class CrearIngreso(graphene.Mutation):
     class Arguments:
         gestion        = graphene.Int()
@@ -893,6 +969,7 @@ class CrearIngreso(graphene.Mutation):
             cod_ofic_dest_id=cod_ofic_dest,
             **kwargs
         )
+        registrar_log_ingreso(obj, 'I', 1)
         return CrearIngreso(ingreso=obj)
 
 class EditarIngreso(graphene.Mutation):
@@ -908,6 +985,7 @@ class EditarIngreso(graphene.Mutation):
         if cod_ofic_dest is not None: obj.cod_ofic_dest_id = cod_ofic_dest
         if cod_prov      is not None: obj.cod_prov_id = cod_prov
         obj.save()
+        registrar_log_ingreso(obj, 'U', 2)
         return EditarIngreso(ingreso=obj)
 
 class AnularIngreso(graphene.Mutation):
@@ -918,6 +996,7 @@ class AnularIngreso(graphene.Mutation):
         obj = in_ingreso.objects.get(pk=nro_ingreso)
         obj.estado = 'B'
         obj.save()
+        registrar_log_ingreso(obj, 'D', 3)
         return AnularIngreso(ingreso=obj)
 
 
@@ -925,54 +1004,104 @@ class AnularIngreso(graphene.Mutation):
 # MUTATIONS — ACTIVO FIJO
 # ═══════════════════════════════════════════════════════════════
 
+def registrar_log_activo(obj, tipo_log_str, tipo_trans_int):
+    in_log_activo.objects.create(
+        nro_activo=obj.nro_activo,
+        cod_gest=obj.cod_gest_id,
+        cod_activo=obj.cod_activo,
+        cod_activo_ax=0,
+        cod_grupo=obj.cod_grupo_id,
+        nro_disp=0,
+        descripcion=obj.descripcion,
+        cod_unidad=obj.cod_unidad_id,
+        monto=Decimal(str(obj.monto)) if obj.monto is not None else None,
+        fec_adqui=obj.fec_adqui,
+        nro_serie=obj.nro_serie,
+        cod_marca=obj.cod_marca_id,
+        cod_modelo=obj.cod_modelo_id,
+        cod_prove=obj.cod_prove_id,
+        cod_cond=obj.cod_cond_id,
+        cod_estado=obj.cod_estado_id,
+        nro_ingreso=obj.nro_ingreso_id,
+        tipo_trans=tipo_trans_int,
+        cod_trans=obj.nro_activo,
+        tipo_transa=tipo_trans_int,
+        cod_transa=obj.nro_activo,
+        fecha_trans=timezone.now(),
+        tipo_actual=tipo_log_str,
+        nro_int=''
+    )
+
 class CrearActivo(graphene.Mutation):
     class Arguments:
-        cod_gest    = graphene.Int(required=True)
-        cod_activo  = graphene.String(required=True)
-        cod_grupo   = graphene.Int(required=True)
-        descripcion = graphene.String(required=True)
-        cod_estado  = graphene.Int(required=True)
-        nro_ingreso = graphene.Int(required=True)
-        cod_unidad  = graphene.Int()
-        monto       = graphene.Float()
-        fec_adqui   = graphene.Date()
-        nro_serie   = graphene.String()
-        cod_marca   = graphene.Int()
-        cod_modelo  = graphene.Int()
-        cod_prove   = graphene.Int()
-        cod_cond    = graphene.Int()
+        cod_gest              = graphene.Int(required=True)
+        cod_activo            = graphene.String(required=True)
+        cod_grupo             = graphene.Int(required=True)
+        descripcion           = graphene.String(required=True)
+        cod_estado            = graphene.Int(required=True)
+        nro_ingreso           = graphene.Int(required=True)
+        cod_unidad            = graphene.Int()
+        monto                 = graphene.Float()
+        fec_adqui             = graphene.Date()
+        nro_serie             = graphene.String()
+        cod_marca             = graphene.Int()
+        cod_modelo            = graphene.Int()
+        cod_prove             = graphene.Int()
+        cod_cond              = graphene.Int()
+        organismo_financiador = graphene.Int()
+        cod_rube              = graphene.String()
+        nro_convenio          = graphene.String()
     activo = graphene.Field(InActivoType)
     def mutate(root, info, cod_gest, cod_activo, cod_grupo, descripcion,
                cod_estado, nro_ingreso, cod_unidad=None, monto=None,
                fec_adqui=None, nro_serie=None, cod_marca=None,
-               cod_modelo=None, cod_prove=None, cod_cond=None):
+               cod_modelo=None, cod_prove=None, cod_cond=None,
+               organismo_financiador=None, cod_rube=None, nro_convenio=None):
         obj = in_activo.objects.create(
             cod_gest_id=cod_gest, cod_activo=cod_activo, cod_grupo_id=cod_grupo,
             descripcion=descripcion, cod_estado_id=cod_estado, nro_ingreso_id=nro_ingreso,
             cod_unidad_id=cod_unidad, monto=monto, fec_adqui=fec_adqui,
             nro_serie=nro_serie, cod_marca_id=cod_marca, cod_modelo_id=cod_modelo,
-            cod_prove_id=cod_prove, cod_cond_id=cod_cond, a_b='A'
+            cod_prove_id=cod_prove, cod_cond_id=cod_cond,
+            organismo_financiador=organismo_financiador, cod_rube=cod_rube, nro_convenio=nro_convenio,
+            estado_registro='ELABORADO', a_b='A'
         )
+        registrar_log_activo(obj, 'I', 1)
         return CrearActivo(activo=obj)
 
 class EditarActivo(graphene.Mutation):
     class Arguments:
-        nro_activo  = graphene.Int(required=True)
-        descripcion = graphene.String()
-        cod_estado  = graphene.Int()
-        cod_grupo   = graphene.Int()
-        cod_marca   = graphene.Int()
-        cod_modelo  = graphene.Int()
-        cod_cond    = graphene.Int()
-        cod_unidad  = graphene.Int()
-        monto       = graphene.Float()
-        nro_serie   = graphene.String()
-        fec_adqui   = graphene.Date()
+        nro_activo            = graphene.Int(required=True)
+        descripcion           = graphene.String()
+        cod_estado            = graphene.Int()
+        cod_grupo             = graphene.Int()
+        cod_marca             = graphene.Int()
+        cod_modelo            = graphene.Int()
+        cod_cond              = graphene.Int()
+        cod_unidad            = graphene.Int()
+        monto                 = graphene.Float()
+        nro_serie             = graphene.String()
+        fec_adqui             = graphene.Date()
+        organismo_financiador = graphene.Int()
+        cod_rube              = graphene.String()
+        nro_convenio          = graphene.String()
     activo = graphene.Field(InActivoType)
     def mutate(root, info, nro_activo, descripcion=None, cod_estado=None,
                cod_grupo=None, cod_marca=None, cod_modelo=None, cod_cond=None,
-               cod_unidad=None, monto=None, nro_serie=None, fec_adqui=None):
+               cod_unidad=None, monto=None, nro_serie=None, fec_adqui=None,
+               organismo_financiador=None, cod_rube=None, nro_convenio=None):
         obj = in_activo.objects.get(pk=nro_activo)
+        
+        if obj.estado_registro == 'APROBADO':
+            if (cod_grupo is not None and cod_grupo != obj.cod_grupo_id) or \
+               (cod_marca is not None and cod_marca != obj.cod_marca_id) or \
+               (cod_modelo is not None and cod_modelo != obj.cod_modelo_id) or \
+               (cod_cond is not None and cod_cond != obj.cod_cond_id) or \
+               (cod_unidad is not None and cod_unidad != obj.cod_unidad_id) or \
+               (monto is not None and float(monto) != float(obj.monto)) or \
+               (fec_adqui is not None and fec_adqui != obj.fec_adqui):
+                raise Exception("No se pueden modificar campos contables o estructurales de un activo en estado APROBADO.")
+
         if descripcion is not None: obj.descripcion = descripcion
         if cod_estado  is not None: obj.cod_estado_id = cod_estado
         if cod_grupo   is not None: obj.cod_grupo_id = cod_grupo
@@ -983,19 +1112,117 @@ class EditarActivo(graphene.Mutation):
         if monto       is not None: obj.monto = monto
         if nro_serie   is not None: obj.nro_serie = nro_serie
         if fec_adqui   is not None: obj.fec_adqui = fec_adqui
+        if organismo_financiador is not None: obj.organismo_financiador = organismo_financiador
+        if cod_rube is not None: obj.cod_rube = cod_rube
+        if nro_convenio is not None: obj.nro_convenio = nro_convenio
         obj.save()
+        registrar_log_activo(obj, 'U', 2)
         return EditarActivo(activo=obj)
 
 class DarDeBajaActivo(graphene.Mutation):
-    """Baja lógica del activo fijo. No elimina el registro."""
+    """Baja lógica o eliminación física del activo fijo."""
     class Arguments:
         nro_activo = graphene.Int(required=True)
     activo = graphene.Field(InActivoType)
     def mutate(root, info, nro_activo):
         obj = in_activo.objects.get(pk=nro_activo)
-        obj.a_b = 'B'
-        obj.save()
+        if obj.estado_registro == 'APROBADO':
+            raise Exception("Un activo APROBADO no puede eliminarse ni darse de baja directamente. Debe registrar un acta de baja formal.")
+        registrar_log_activo(obj, 'D', 3)
+        obj.delete()
         return DarDeBajaActivo(activo=obj)
+
+class AprobarActivo(graphene.Mutation):
+    class Arguments:
+        nro_activo = graphene.Int(required=True)
+    activo = graphene.Field(InActivoType)
+    def mutate(root, info, nro_activo):
+        obj = in_activo.objects.get(pk=nro_activo)
+        obj.estado_registro = 'APROBADO'
+        obj.save()
+        registrar_log_activo(obj, 'U', 2)
+        return AprobarActivo(activo=obj)
+
+
+class CrearBajaAct(graphene.Mutation):
+    class Arguments:
+        nro_activo     = graphene.Int(required=True)
+        cod_asig       = graphene.Int()
+        tipo_per_aut   = graphene.Int(required=True)
+        cod_emp_aut    = graphene.Int(required=True)
+        documento      = graphene.String()
+        fecha_baja_te  = graphene.Date(required=True)
+        fecha_baja_ef  = graphene.Date()
+        motivo         = graphene.String(required=True)
+        observacion    = graphene.String()
+        tipo_per_resp  = graphene.Int()
+        cod_emp_resp   = graphene.Int()
+        valor_final    = graphene.Float()
+
+    baja = graphene.Field(InBajaActType)
+
+    def mutate(root, info, nro_activo, tipo_per_aut, cod_emp_aut, fecha_baja_te, motivo,
+               cod_asig=None, documento=None, fecha_baja_ef=None, observacion=None,
+               tipo_per_resp=None, cod_emp_resp=None, valor_final=None):
+        
+        activo_obj = in_activo.objects.get(pk=nro_activo)
+        
+        if not cod_asig:
+            det_asig = in_det_asig.objects.filter(nro_activo=activo_obj).order_by('-cod_asig_id').first()
+            cod_asig_val = det_asig.cod_asig_id if det_asig else 0
+        else:
+            cod_asig_val = cod_asig
+
+        valor_final_dec = None
+        if valor_final is not None:
+            valor_final_dec = Decimal(str(valor_final))
+        else:
+            dep_acum = in_dep_acumulada.objects.filter(nro_activo=activo_obj).order_by('-nro_serie').first()
+            if dep_acum:
+                valor_final_dec = dep_acum.valor_actual
+            else:
+                valor_final_dec = activo_obj.monto if activo_obj.monto else Decimal('0')
+
+        baja_obj = in_baja_act.objects.create(
+            nro_activo=activo_obj,
+            cod_asig=cod_asig_val,
+            tipo_per_aut=tipo_per_aut,
+            cod_emp_aut=cod_emp_aut,
+            documento=documento,
+            fecha_baja_te=fecha_baja_te,
+            fecha_baja_ef=fecha_baja_ef,
+            motivo=motivo[:1],
+            observacion=observacion,
+            tipo_per_resp=tipo_per_resp,
+            cod_emp_resp=cod_emp_resp,
+            valor_final=valor_final_dec,
+            fecha_trans=timezone.now()
+        )
+
+        activo_obj.a_b = 'B'
+        activo_obj.save()
+
+        # Auditoría log
+        in_log_baja_act.objects.create(
+            nro=baja_obj.nro,
+            cod_asig=baja_obj.cod_asig,
+            nro_activo=activo_obj.pk,
+            tipo_per_aut=baja_obj.tipo_per_aut,
+            cod_emp_aut=baja_obj.cod_emp_aut,
+            documento=baja_obj.documento,
+            fecha_baja_te=baja_obj.fecha_baja_te,
+            motivo=baja_obj.motivo,
+            fecha_baja_ef=baja_obj.fecha_baja_ef,
+            observacion=baja_obj.observacion,
+            tipo_per_resp=baja_obj.tipo_per_resp,
+            cod_emp_resp=baja_obj.cod_emp_resp,
+            valor_final=baja_obj.valor_final,
+            fecha_trans=baja_obj.fecha_trans,
+            fecha_proc=timezone.now()
+        )
+
+        return CrearBajaAct(baja=baja_obj)
+
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -1015,6 +1242,24 @@ class CrearAsignacion(graphene.Mutation):
             tipo_asig_id=tipo_asig, tipo_resp=tipo_resp, cod_resp=cod_resp,
             cod_ofic_id=cod_ofic, fecha_asig=fecha_asig, estado='A'
         )
+        in_log_asignado.objects.create(
+            cod_asig=obj.cod_asig,
+            tipo_asig=obj.tipo_asig_id,
+            tipo_resp=obj.tipo_resp,
+            cod_resp=obj.cod_resp,
+            cod_ofic=obj.cod_ofic_id,
+            fecha_asig=obj.fecha_asig,
+            fecha_fin=obj.fecha_fin,
+            obs='Creación de asignación',
+            tipo_trans_ant=0,
+            cod_trans_ant=0,
+            tipo_trans_act=1,
+            cod_trans_act=obj.cod_asig,
+            fecha_act=timezone.now(),
+            tipo_log='I',
+            tipo_inv=0,
+            cod_inv=0
+        )
         return CrearAsignacion(asignado=obj)
 
 class EditarAsignacion(graphene.Mutation):
@@ -1032,6 +1277,24 @@ class EditarAsignacion(graphene.Mutation):
         if cod_resp  is not None: obj.cod_resp = cod_resp
         if fecha_fin is not None: obj.fecha_fin = fecha_fin
         obj.save()
+        in_log_asignado.objects.create(
+            cod_asig=obj.cod_asig,
+            tipo_asig=obj.tipo_asig_id,
+            tipo_resp=obj.tipo_resp,
+            cod_resp=obj.cod_resp,
+            cod_ofic=obj.cod_ofic_id,
+            fecha_asig=obj.fecha_asig,
+            fecha_fin=obj.fecha_fin,
+            obs='Edición de asignación',
+            tipo_trans_ant=1,
+            cod_trans_ant=obj.cod_asig,
+            tipo_trans_act=2,
+            cod_trans_act=obj.cod_asig,
+            fecha_act=timezone.now(),
+            tipo_log='U',
+            tipo_inv=0,
+            cod_inv=0
+        )
         return EditarAsignacion(asignado=obj)
 
 class AnularAsignacion(graphene.Mutation):
@@ -1047,6 +1310,24 @@ class AnularAsignacion(graphene.Mutation):
         else:
             obj.fecha_fin = timezone.now().date()
         obj.save()
+        in_log_asignado.objects.create(
+            cod_asig=obj.cod_asig,
+            tipo_asig=obj.tipo_asig_id,
+            tipo_resp=obj.tipo_resp,
+            cod_resp=obj.cod_resp,
+            cod_ofic=obj.cod_ofic_id,
+            fecha_asig=obj.fecha_asig,
+            fecha_fin=obj.fecha_fin,
+            obs='Anulación de asignación',
+            tipo_trans_ant=1,
+            cod_trans_ant=obj.cod_asig,
+            tipo_trans_act=3,
+            cod_trans_act=obj.cod_asig,
+            fecha_act=timezone.now(),
+            tipo_log='D',
+            tipo_inv=0,
+            cod_inv=0
+        )
         return AnularAsignacion(asignado=obj)
 
 class AsignarActivo(graphene.Mutation):
@@ -1059,6 +1340,18 @@ class AsignarActivo(graphene.Mutation):
         obj = in_det_asig.objects.create(
             cod_asig_id=cod_asig, nro_activo_id=nro_activo,
             cantidad=cantidad, fecha_trans=timezone.now().date()
+        )
+        in_log_det_asig.objects.create(
+            cod_asig=obj.cod_asig_id,
+            nro_activo=obj.nro_activo_id,
+            cantidad=obj.cantidad,
+            fecha_trans=obj.fecha_trans,
+            tipo_trans=1,
+            cod_trans=obj.cod_asig_id,
+            tipo_trans_act=1,
+            cod_trans_act=obj.cod_asig_id,
+            fecha_trans_act=timezone.now(),
+            tipo_actual='I'
         )
         return AsignarActivo(det_asig=obj)
 
@@ -1074,6 +1367,18 @@ class EditarDetAsig(graphene.Mutation):
         if cantidad    is not None: obj.cantidad = cantidad
         if fecha_trans is not None: obj.fecha_trans = fecha_trans
         obj.save()
+        in_log_det_asig.objects.create(
+            cod_asig=obj.cod_asig_id,
+            nro_activo=obj.nro_activo_id,
+            cantidad=obj.cantidad,
+            fecha_trans=obj.fecha_trans,
+            tipo_trans=2,
+            cod_trans=obj.cod_asig_id,
+            tipo_trans_act=2,
+            cod_trans_act=obj.cod_asig_id,
+            fecha_trans_act=timezone.now(),
+            tipo_actual='U'
+        )
         return EditarDetAsig(det_asig=obj)
 
 class AgregarEncargado(graphene.Mutation):
@@ -1101,11 +1406,33 @@ class CerrarEncargado(graphene.Mutation):
         obj.fecha_fin = fecha_fin
         obj.save()
         return CerrarEncargado(encargado=obj)
-
-
 # ═══════════════════════════════════════════════════════════════
 # MUTATIONS — REVALUACIÓN Y DEPRECIACIÓN
 # ═══════════════════════════════════════════════════════════════
+
+def registrar_log_det_reval(det, tipo_actual, nro_serie_param=None):
+    from django.utils import timezone
+    serie_val = nro_serie_param if nro_serie_param is not None else 0
+    in_log_det_reval.objects.create(
+        cod_reval=det.cod_reval_id,
+        nro_activo=det.nro_activo_id,
+        vida_util_mes=det.vida_util_mes,
+        vida_util_ano=det.vida_util_ano,
+        tipo_moneda='B',
+        costo=det.costo,
+        fecha_reval=det.fecha_reval,
+        serie_ant=0,
+        tipo_trans_ant=0,
+        cod_trans_ant=0,
+        fecha_trans_ant=det.fecha_reval,
+        serie=serie_val,
+        estado=det.estado,
+        tipo=0,
+        tipo_trans_act=0,
+        cod_trans_act=det.cod_reval_id,
+        fecha_actual=timezone.now(),
+        tipo_actual=tipo_actual
+    )
 
 class AgregarDetRevalConDepreciacion(graphene.Mutation):
     """
@@ -1149,6 +1476,7 @@ class AgregarDetRevalConDepreciacion(graphene.Mutation):
             valor_actual=max(valor_actual, Decimal('0')),
             valor_revaluo=costo_dec
         )
+        registrar_log_det_reval(det, 'I', nro_serie_param=nro_serie)
         return AgregarDetRevalConDepreciacion(det_reval=det, dep_acumulada=dep)
 
 class EditarDetReval(graphene.Mutation):
@@ -1161,6 +1489,7 @@ class EditarDetReval(graphene.Mutation):
         obj = in_det_reval.objects.get(cod_reval_id=cod_reval, nro_activo_id=nro_activo)
         if estado is not None: obj.estado = estado
         obj.save()
+        registrar_log_det_reval(obj, 'U', nro_serie_param=0)
         return EditarDetReval(det_reval=obj)
 
 class AnularDetReval(graphene.Mutation):
@@ -1172,8 +1501,8 @@ class AnularDetReval(graphene.Mutation):
         obj = in_det_reval.objects.get(cod_reval_id=cod_reval, nro_activo_id=nro_activo)
         obj.estado = 'B'
         obj.save()
+        registrar_log_det_reval(obj, 'D', nro_serie_param=0)
         return AnularDetReval(det_reval=obj)
-
 
 class CalcularDepreciacionMasiva(graphene.Mutation):
     """
@@ -1190,15 +1519,25 @@ class CalcularDepreciacionMasiva(graphene.Mutation):
     errores     = graphene.List(graphene.String)
 
     def mutate(root, info, gestion, periodo):
+        import datetime
+        import calendar
+
         if periodo < 1 or periodo > 12:
             raise Exception("El periodo debe estar entre 1 y 12")
 
-        activos = in_activo.objects.filter(a_b='A').select_related('cod_grupo')
+        # Fecha de fin de período
+        final_day = calendar.monthrange(gestion, periodo)[1]
+        fecha_fin = datetime.date(gestion, periodo, final_day)
+
+        # UFV al fin del período
+        tasa_f = in_tasa_rev.objects.filter(fecha__lte=fecha_fin).order_by('-fecha').first()
+        ufv_f = Decimal(str(tasa_f.ufv)) if tasa_f else None
+
+        activos = in_activo.objects.filter(a_b='A', estado_registro='APROBADO').select_related('cod_grupo')
         procesados = 0
         omitidos   = 0
         errores    = []
 
-        # nro_serie = gestion * 100 + periodo  (ej. 202506)
         nro_serie = gestion * 100 + periodo
 
         for activo in activos:
@@ -1208,12 +1547,12 @@ class CalcularDepreciacionMasiva(graphene.Mutation):
                     omitidos += 1
                     continue
 
-                costo = activo.monto
-                if costo is None or costo <= 0:
+                costo_orig = activo.monto
+                if costo_orig is None or costo_orig <= 0:
                     omitidos += 1
                     continue
 
-                # Check if depreciation already exists for this period
+                # Verificar si ya existe depreciación para este período
                 ya_existe = in_dep_acumulada.objects.filter(
                     nro_activo_id=activo.pk,
                     nro_serie=nro_serie
@@ -1222,16 +1561,47 @@ class CalcularDepreciacionMasiva(graphene.Mutation):
                     omitidos += 1
                     continue
 
-                vida_total_meses = (det_grp.vida_util_ano * 12) + (det_grp.vida_util_mes or 0)
-                dep_mensual = Decimal(str(costo)) / Decimal(str(vida_total_meses))
-
-                # Get previous accumulated depreciation
+                # Obtener la última depreciación
                 anterior = in_dep_acumulada.objects.filter(
                     nro_activo_id=activo.pk
                 ).order_by('-nro_serie').first()
-                acum_ant = anterior.acumulada if anterior else Decimal('0')
-                nueva_acum = acum_ant + dep_mensual
-                valor_actual = max(Decimal(str(costo)) - nueva_acum, Decimal('0'))
+
+                # Determinar fecha inicial y tasa UFV inicial
+                ufv_i = None
+                if anterior:
+                    prev_y = anterior.nro_serie // 100
+                    prev_m = anterior.nro_serie % 100
+                    prev_final_day = calendar.monthrange(prev_y, prev_m)[1]
+                    fecha_ini = datetime.date(prev_y, prev_m, prev_final_day)
+                else:
+                    fecha_ini = activo.fec_adqui
+
+                if fecha_ini:
+                    tasa_i = in_tasa_rev.objects.filter(fecha__lte=fecha_ini).order_by('-fecha').first()
+                    ufv_i = Decimal(str(tasa_i.ufv)) if tasa_i else None
+
+                # Factor de actualización
+                factor = Decimal('1.0')
+                if ufv_f and ufv_i:
+                    factor = ufv_f / ufv_i
+
+                # Costo y depreciación acumulada anteriores actualizados
+                costo_ant = Decimal(str(anterior.valor_revaluo if anterior else costo_orig))
+                costo_act = costo_ant * factor
+
+                acum_ant = Decimal(str(anterior.acumulada if anterior else '0'))
+                acum_ant_act = acum_ant * factor
+
+                # Calcular depreciación de este mes
+                vida_total_meses = (det_grp.vida_util_ano * 12) + (det_grp.vida_util_mes or 0)
+                dep_mensual = costo_act / Decimal(str(vida_total_meses))
+
+                # Ajustar depreciación mensual para no sobrepasar el costo actualizado
+                limite_dep = costo_act - acum_ant_act
+                dep_mensual = max(Decimal('0'), min(dep_mensual, limite_dep))
+
+                nueva_acum = acum_ant_act + dep_mensual
+                valor_actual = max(costo_act - nueva_acum, Decimal('0'))
 
                 in_dep_acumulada.objects.create(
                     nro_serie=nro_serie,
@@ -1239,7 +1609,7 @@ class CalcularDepreciacionMasiva(graphene.Mutation):
                     depresiacion=round(dep_mensual, 2),
                     acumulada=round(nueva_acum, 2),
                     valor_actual=round(valor_actual, 2),
-                    valor_revaluo=costo
+                    valor_revaluo=round(costo_act, 2)
                 )
                 procesados += 1
 
@@ -1633,10 +2003,11 @@ class RegistrarEmpleadoUsuario(graphene.Mutation):
         salario = graphene.Decimal(required=True)
         correo = graphene.String(required=True)
         contrasena = graphene.String(required=True)
+        procedencia = graphene.String()
 
     usuario = graphene.Field(InUsuarioType)
 
-    def mutate(self, info, nombre, apellido, numero_documento, tipo_documento, fecha_ingreso, salario, correo, contrasena):
+    def mutate(self, info, nombre, apellido, numero_documento, tipo_documento, fecha_ingreso, salario, correo, contrasena, procedencia=None):
         if in_usuario.objects.filter(correo=correo).exists():
             raise Exception("El correo ya se encuentra registrado")
         if in_empleado.objects.filter(numero_documento=numero_documento).exists():
@@ -1648,7 +2019,8 @@ class RegistrarEmpleadoUsuario(graphene.Mutation):
             numero_documento=numero_documento,
             tipo_documento=tipo_documento,
             fecha_ingreso=fecha_ingreso,
-            salario=salario
+            salario=salario,
+            procedencia=procedencia
         )
 
         usr = in_usuario.objects.create(
@@ -1861,6 +2233,66 @@ class AsignarRolPermisoUsuario(graphene.Mutation):
         return AsignarRolPermisoUsuario(rol_permiso_usuario=obj)
 
 
+class GuardarVehiculo(graphene.Mutation):
+    class Arguments:
+        nro_activo = graphene.Int(required=True)
+        tipo = graphene.String()
+        marca = graphene.String()
+        modelo = graphene.String()
+        anio = graphene.Int()
+        color = graphene.String()
+        placa = graphene.String()
+        motor = graphene.String()
+        chasis = graphene.String()
+        cilindrada = graphene.Int()
+        industria = graphene.String()
+        ruat = graphene.String()
+        carnet_prop = graphene.String()
+        poliza = graphene.String()
+        factura = graphene.Int()
+        res_min = graphene.String()
+        res_adm = graphene.String()
+        inf_tec = graphene.String()
+        ley_estado = graphene.String()
+        ds = graphene.String()
+        doc_transf = graphene.String()
+        doc_comp_ven = graphene.String()
+        minuta = graphene.String()
+        acta_co_ve = graphene.String()
+        imagen = graphene.String()
+
+    vehiculo = graphene.Field(InVehicType)
+
+    def mutate(root, info, nro_activo, **kwargs):
+        obj, created = in_vehic.objects.update_or_create(
+            nro_activo_id=nro_activo,
+            defaults=kwargs
+        )
+        return GuardarVehiculo(vehiculo=obj)
+
+
+class GuardarTasaRev(graphene.Mutation):
+    class Arguments:
+        nro = graphene.Int()
+        fecha = graphene.Date(required=True)
+        ufv = graphene.Float(required=True)
+
+    tasa_rev = graphene.Field(InTasaRevType)
+
+    def mutate(root, info, fecha, ufv, nro=None):
+        if nro:
+            obj = in_tasa_rev.objects.get(pk=nro)
+            obj.fecha = fecha
+            obj.ufv = Decimal(str(ufv))
+            obj.save()
+        else:
+            obj, created = in_tasa_rev.objects.update_or_create(
+                fecha=fecha,
+                defaults={'ufv': Decimal(str(ufv))}
+            )
+        return GuardarTasaRev(tasa_rev=obj)
+
+
 
 # ═══════════════════════════════════════════════════════════════
 # MUTATION ROOT
@@ -1943,6 +2375,10 @@ class Mutation(graphene.ObjectType):
     crear_activo         = CrearActivo.Field()
     editar_activo        = EditarActivo.Field()
     dar_de_baja_activo   = DarDeBajaActivo.Field()
+    aprobar_activo       = AprobarActivo.Field()
+    crear_baja_act       = CrearBajaAct.Field()
+    guardar_vehiculo     = GuardarVehiculo.Field()
+    guardar_tasa_rev     = GuardarTasaRev.Field()
 
     # ── Asignación ──────────────────────────────────────────────
     crear_asignacion     = CrearAsignacion.Field()

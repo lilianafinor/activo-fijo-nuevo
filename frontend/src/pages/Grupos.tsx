@@ -1,19 +1,7 @@
 import React, { useState } from 'react';
-import { useQuery, useMutation, gql } from '@apollo/client';
-
-const GET_GRUPOS = gql`
-  query { todosGrupos { codGrupo codHijo desGrupo nivel aB codPadre { codGrupo desGrupo } } }
-`;
-const CREAR_GRUPO = gql`
-  mutation CrearGrupo($codHijo: String!, $desGrupo: String, $codGest: Int!, $codPadre: Int, $nivel: Int, $aB: String) {
-    crearGrupo(codHijo: $codHijo, desGrupo: $desGrupo, codGest: $codGest, codPadre: $codPadre, nivel: $nivel, aB: $aB) {
-      grupo { codGrupo desGrupo }
-    }
-  }
-`;
-const ELIMINAR_GRUPO = gql`
-  mutation($codGrupo: Int!) { eliminarGrupo(codGrupo: $codGrupo) { ok } }
-`;
+import { useQuery, useMutation } from '@apollo/client';
+import { GET_GRUPOS } from '../graphql/queries';
+import { CREAR_GRUPO, EDITAR_GRUPO, ELIMINAR_GRUPO } from '../graphql/mutations';
 
 // Construir árbol desde lista plana
 const buildTree = (grupos: any[]) => {
@@ -36,7 +24,15 @@ const nivelColores: Record<number, string> = {
   3: '#666',
 };
 
-const GrupoFila = ({ grupo, onEliminar }: { grupo: any; onEliminar: (id: number) => void }) => {
+const GrupoFila = ({
+  grupo,
+  onEditar,
+  onEliminar,
+}: {
+  grupo: any;
+  onEditar: (g: any) => void;
+  onEliminar: (id: number) => void;
+}) => {
   const sangria = ((grupo.nivel || 1) - 1) * 24;
   const prefijos = ['', '├─ ', '└── '];
   const prefijo = prefijos[Math.min((grupo.nivel || 1) - 1, 2)];
@@ -56,13 +52,18 @@ const GrupoFila = ({ grupo, onEliminar }: { grupo: any; onEliminar: (id: number)
             Nivel {grupo.nivel}
           </span>
         </td>
+        <td>{grupo.vidaUtilDefault !== null && grupo.vidaUtilDefault !== undefined ? `${grupo.vidaUtilDefault} años` : '-'}</td>
+        <td>{grupo.codigoContable || '-'}</td>
         <td><span className={`badge ${grupo.aB === 'A' ? 'badge-success' : 'badge-danger'}`}>{grupo.aB === 'A' ? 'Activo' : 'Baja'}</span></td>
         <td>
-          <button className="btn btn-danger btn-sm" onClick={() => onEliminar(grupo.codGrupo)}>Eliminar</button>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button className="btn btn-secondary btn-sm" onClick={() => onEditar(grupo)}>Editar</button>
+            <button className="btn btn-danger btn-sm" onClick={() => onEliminar(grupo.codGrupo)}>Eliminar</button>
+          </div>
         </td>
       </tr>
       {grupo.children?.map((hijo: any) => (
-        <GrupoFila key={hijo.codGrupo} grupo={hijo} onEliminar={onEliminar} />
+        <GrupoFila key={hijo.codGrupo} grupo={hijo} onEditar={onEditar} onEliminar={onEliminar} />
       ))}
     </>
   );
@@ -70,10 +71,20 @@ const GrupoFila = ({ grupo, onEliminar }: { grupo: any; onEliminar: (id: number)
 
 export default function Grupos() {
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({ codHijo: '', desGrupo: '', codPadre: '', nivel: '1', aB: 'A' });
+  const [editId, setEditId] = useState<number | null>(null);
+  const [form, setForm] = useState({
+    codHijo: '',
+    desGrupo: '',
+    codPadre: '',
+    nivel: '1',
+    aB: 'A',
+    vidaUtilDefault: '',
+    codigoContable: '',
+  });
 
   const { data, loading, error, refetch } = useQuery(GET_GRUPOS);
   const [crearGrupo] = useMutation(CREAR_GRUPO);
+  const [editarGrupo] = useMutation(EDITAR_GRUPO);
   const [eliminarGrupo] = useMutation(ELIMINAR_GRUPO);
 
   const handleNivelAutomatico = (codPadreId: string) => {
@@ -86,18 +97,59 @@ export default function Grupos() {
   const handleSubmit = async () => {
     if (!form.codHijo) { alert('El código es obligatorio'); return; }
     try {
-      await crearGrupo({ variables: {
-        codHijo: form.codHijo, desGrupo: form.desGrupo || null, codGest: 1,
+      const variables: any = {
+        codHijo: form.codHijo,
+        desGrupo: form.desGrupo || null,
+        codGest: 1,
         codPadre: form.codPadre ? parseInt(form.codPadre) : null,
-        nivel: parseInt(form.nivel), aB: form.aB
-      }});
-      setShowModal(false); setForm({ codHijo: '', desGrupo: '', codPadre: '', nivel: '1', aB: 'A' }); refetch();
+        nivel: parseInt(form.nivel),
+        aB: form.aB,
+        vidaUtilDefault: form.vidaUtilDefault ? parseInt(form.vidaUtilDefault) : null,
+        codigoContable: form.codigoContable || null,
+      };
+
+      if (editId) {
+        await editarGrupo({ variables: { codGrupo: editId, ...variables } });
+      } else {
+        await crearGrupo({ variables });
+      }
+      setShowModal(false);
+      setEditId(null);
+      setForm({
+        codHijo: '',
+        desGrupo: '',
+        codPadre: '',
+        nivel: '1',
+        aB: 'A',
+        vidaUtilDefault: '',
+        codigoContable: '',
+      });
+      refetch();
     } catch (e: any) { alert('Error: ' + e.message); }
+  };
+
+  const handleEditar = (grupo: any) => {
+    setEditId(grupo.codGrupo);
+    setForm({
+      codHijo: grupo.codHijo || '',
+      desGrupo: grupo.desGrupo || '',
+      codPadre: grupo.codPadre ? String(grupo.codPadre.codGrupo) : '',
+      nivel: String(grupo.nivel || 1),
+      aB: grupo.aB || 'A',
+      vidaUtilDefault: grupo.vidaUtilDefault !== null && grupo.vidaUtilDefault !== undefined ? String(grupo.vidaUtilDefault) : '',
+      codigoContable: grupo.codigoContable || '',
+    });
+    setShowModal(true);
   };
 
   const handleEliminar = async (codGrupo: number) => {
     if (!window.confirm('¿Eliminar este grupo?')) return;
-    await eliminarGrupo({ variables: { codGrupo } }); refetch();
+    try {
+      await eliminarGrupo({ variables: { codGrupo } });
+      refetch();
+    } catch (e: any) {
+      alert('Error: ' + e.message);
+    }
   };
 
   const tree = data ? buildTree(data.todosGrupos) : [];
@@ -109,7 +161,24 @@ export default function Grupos() {
     <div>
       <div className="page-header">
         <h1 className="page-title">📁 Grupos de Activos</h1>
-        <button className="btn btn-primary" onClick={() => setShowModal(true)}>+ Nuevo Grupo</button>
+        <button
+          className="btn btn-primary"
+          onClick={() => {
+            setEditId(null);
+            setForm({
+              codHijo: '',
+              desGrupo: '',
+              codPadre: '',
+              nivel: '1',
+              aB: 'A',
+              vidaUtilDefault: '',
+              codigoContable: '',
+            });
+            setShowModal(true);
+          }}
+        >
+          + Nuevo Grupo
+        </button>
       </div>
 
       {/* Leyenda de niveles */}
@@ -126,13 +195,17 @@ export default function Grupos() {
               <th>Descripción</th>
               <th>Código</th>
               <th>Nivel</th>
+              <th>Vida Útil (Años)</th>
+              <th>Cuenta Contable</th>
               <th>Estado</th>
               <th>Acciones</th>
             </tr>
           </thead>
           <tbody>
-            {tree.length === 0 && <tr><td colSpan={5} className="empty">No hay grupos registrados</td></tr>}
-            {tree.map((g: any) => <GrupoFila key={g.codGrupo} grupo={g} onEliminar={handleEliminar} />)}
+            {tree.length === 0 && <tr><td colSpan={7} className="empty">No hay grupos registrados</td></tr>}
+            {tree.map((g: any) => (
+              <GrupoFila key={g.codGrupo} grupo={g} onEditar={handleEditar} onEliminar={handleEliminar} />
+            ))}
           </tbody>
         </table>
       </div>
@@ -140,7 +213,7 @@ export default function Grupos() {
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
-            <h2 className="modal-title">Nuevo Grupo</h2>
+            <h2 className="modal-title">{editId ? 'Editar Grupo' : 'Nuevo Grupo'}</h2>
             <div className="form-grid">
               <div className="form-group">
                 <label>Nivel *</label>
@@ -169,6 +242,23 @@ export default function Grupos() {
                   </select>
                 </div>
               )}
+              <div className="form-group">
+                <label>Vida Útil (Años)</label>
+                <input
+                  type="number"
+                  value={form.vidaUtilDefault}
+                  onChange={e => setForm({...form, vidaUtilDefault: e.target.value})}
+                  placeholder="Ej: 5"
+                />
+              </div>
+              <div className="form-group">
+                <label>Cuenta Contable</label>
+                <input
+                  value={form.codigoContable}
+                  onChange={e => setForm({...form, codigoContable: e.target.value})}
+                  placeholder="Ej: 12345"
+                />
+              </div>
               <div className="form-group">
                 <label>Estado</label>
                 <select value={form.aB} onChange={e => setForm({...form, aB: e.target.value})}>

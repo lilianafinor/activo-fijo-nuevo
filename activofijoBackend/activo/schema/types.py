@@ -13,7 +13,10 @@ from ..models import (
     in_atributo, in_det_atrib, in_atrib_activo,
     in_parte_grupo, in_mod_grp, in_det_grp, in_det_parte,
     in_transferido, in_det_tranf,
-    in_rol, in_permiso, in_rol_permiso, in_empleado, in_usuario, in_rol_permiso_usuario
+    in_rol, in_permiso, in_rol_permiso, in_empleado, in_usuario, in_rol_permiso_usuario,
+    in_motivo, in_baja_act, in_vehic, in_tasa_rev,
+    in_log_activo, in_log_ingreso, in_log_asignado, in_log_det_asig,
+    in_log_oficina, in_log_det_reval, in_log_baja_act
 )
 
 
@@ -264,6 +267,72 @@ class InUsuarioType(DjangoObjectType):
 class InRolPermisoUsuarioType(DjangoObjectType):
     class Meta:
         model = in_rol_permiso_usuario
+        fields = '__all__'
+
+
+class InMotivoType(DjangoObjectType):
+    class Meta:
+        model = in_motivo
+        fields = '__all__'
+
+
+class InBajaActType(DjangoObjectType):
+    class Meta:
+        model = in_baja_act
+        fields = '__all__'
+
+
+class InVehicType(DjangoObjectType):
+    class Meta:
+        model = in_vehic
+        fields = '__all__'
+
+
+class InTasaRevType(DjangoObjectType):
+    class Meta:
+        model = in_tasa_rev
+        fields = '__all__'
+
+
+class InLogActivoType(DjangoObjectType):
+    class Meta:
+        model = in_log_activo
+        fields = '__all__'
+
+
+class InLogIngresoType(DjangoObjectType):
+    class Meta:
+        model = in_log_ingreso
+        fields = '__all__'
+
+
+class InLogAsignadoType(DjangoObjectType):
+    class Meta:
+        model = in_log_asignado
+        fields = '__all__'
+
+
+class InLogDetAsigType(DjangoObjectType):
+    class Meta:
+        model = in_log_det_asig
+        fields = '__all__'
+
+
+class InLogOficinaType(DjangoObjectType):
+    class Meta:
+        model = in_log_oficina
+        fields = '__all__'
+
+
+class InLogDetRevalType(DjangoObjectType):
+    class Meta:
+        model = in_log_det_reval
+        fields = '__all__'
+
+
+class InLogBajaActType(DjangoObjectType):
+    class Meta:
+        model = in_log_baja_act
         fields = '__all__'
 
 

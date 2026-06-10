@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
+import { REGISTRAR_EMPLEADO_USUARIO } from '../graphql/mutations';
 
 // ==================== QUERIES & MUTATIONS ====================
 const GET_USUARIOS_DATA = gql`
@@ -19,6 +20,7 @@ const GET_USUARIOS_DATA = gql`
         salario
         telefono
         cargo
+        procedencia
       }
       rolesPermisos {
         id
@@ -50,28 +52,6 @@ const GET_USUARIOS_DATA = gql`
         idEmpleado
       }
       aB
-    }
-  }
-`;
-
-const REGISTRAR_EMPLEADO_USUARIO = gql`
-  mutation RegistrarEmpleadoUsuario(
-    $nombre: String!, $apellido: String!, $numeroDocumento: String!,
-    $tipoDocumento: String!, $fechaIngreso: Date!, $salario: Decimal!,
-    $correo: String!, $contrasena: String!
-  ) {
-    registrarEmpleadoUsuario(
-      nombre: $nombre, apellido: $apellido, numeroDocumento: $numeroDocumento,
-      tipoDocumento: $tipoDocumento, fechaIngreso: $fechaIngreso, salario: $salario,
-      correo: $correo, contrasena: $contrasena
-    ) {
-      usuario {
-        idUsuario
-        correo
-        idEmpleado {
-          idEmpleado
-        }
-      }
     }
   }
 `;
@@ -145,7 +125,8 @@ export default function Usuarios() {
     correo: '',
     contrasena: '',
     hacerResponsable: false,
-    codEstprog: ''
+    codEstprog: '',
+    procedencia: ''
   });
 
   const [formResp, setFormResp] = useState({
@@ -170,7 +151,7 @@ export default function Usuarios() {
 
   // Submit new employee + user creation
   const handleRegistrar = async () => {
-    const { nombre, apellido, numeroDocumento, tipoDocumento, fechaIngreso, salario, correo, contrasena, hacerResponsable, codEstprog } = formUsr;
+    const { nombre, apellido, numeroDocumento, tipoDocumento, fechaIngreso, salario, correo, contrasena, hacerResponsable, codEstprog, procedencia } = formUsr;
     
     if (!nombre || !apellido || !numeroDocumento || !tipoDocumento || !fechaIngreso || !salario || !correo || !contrasena) {
       alert('Por favor complete todos los campos obligatorios (*).');
@@ -192,7 +173,8 @@ export default function Usuarios() {
           fechaIngreso,
           salario: parseFloat(salario),
           correo,
-          contrasena
+          contrasena,
+          procedencia: procedencia || null
         }
       });
 
@@ -222,7 +204,8 @@ export default function Usuarios() {
         correo: '',
         contrasena: '',
         hacerResponsable: false,
-        codEstprog: ''
+        codEstprog: '',
+        procedencia: ''
       });
       refetch();
       alert('✅ Empleado y usuario registrados exitosamente.');
@@ -494,9 +477,17 @@ export default function Usuarios() {
               </button>
             </div>
             
-            <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '1rem' }}>
+            <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '0.5rem' }}>
               Correo de cuenta: <strong>{usuarioSeleccionado.correo}</strong>
             </p>
+            {usuarioSeleccionado.idEmpleado && (
+              <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '1rem' }}>
+                Documento: <strong>
+                  {usuarioSeleccionado.idEmpleado.tipoDocumento} {usuarioSeleccionado.idEmpleado.numeroDocumento} 
+                  {usuarioSeleccionado.idEmpleado.procedencia ? ` (${usuarioSeleccionado.idEmpleado.procedencia})` : ''}
+                </strong>
+              </p>
+            )}
 
             {/* Listado de roles y permisos activos */}
             <div style={{ marginBottom: '1.5rem' }}>
@@ -694,6 +685,25 @@ export default function Usuarios() {
                   value={formUsr.numeroDocumento}
                   onChange={e => setFormUsr({ ...formUsr, numeroDocumento: e.target.value })}
                 />
+              </div>
+
+              <div className="form-group">
+                <label>Procedencia (CI)</label>
+                <select
+                  value={formUsr.procedencia}
+                  onChange={e => setFormUsr({ ...formUsr, procedencia: e.target.value })}
+                >
+                  <option value="">Seleccione...</option>
+                  <option value="LP">LP - La Paz</option>
+                  <option value="SC">SC - Santa Cruz</option>
+                  <option value="CB">CB - Cochabamba</option>
+                  <option value="OR">OR - Oruro</option>
+                  <option value="PT">PT - Potosí</option>
+                  <option value="TJ">TJ - Tarija</option>
+                  <option value="CH">CH - Chuquisaca</option>
+                  <option value="BE">BE - Beni</option>
+                  <option value="PD">PD - Pando</option>
+                </select>
               </div>
 
               <div className="form-group">

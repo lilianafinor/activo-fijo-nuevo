@@ -1,87 +1,67 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
+import { GET_ACTIVOS, GET_CATALOGOS_ACTIVOS } from '../graphql/queries';
+import { CREAR_ACTIVO, EDITAR_ACTIVO, APROBAR_ACTIVO } from '../graphql/mutations';
 
 const permisos = ['ver_activos', 'crear_activo', 'eliminar_activo'];
 
-// ==================== QUERIES & MUTATIONS ====================
-const GET_ACTIVOS = gql`
-  query {
-    todosActivos {
-      nroActivo codActivo descripcion monto fecAdqui nroSerie aB
-      codEstado { desEstado }
-      codGrupo { codGrupo desGrupo }
-      codMarca { desMarca }
-      codModelo { desModelo }
-      codCond { desCond }
-      codProve { nombre }
-      nroIngreso { nroIngreso glosa }
+const GET_VEHICULO = gql`
+  query GetVehiculo($nroActivo: Int!) {
+    vehiculoPorActivo(nroActivo: $nroActivo) {
+      nroActivo {
+        nroActivo
+      }
+      tipo
+      marca
+      modelo
+      anio
+      color
+      placa
+      motor
+      chasis
+      cilindrada
+      industria
+      ruat
+      carnetProp
+      poliza
+      factura
+      resMin
+      resAdm
+      infTec
+      leyEstado
+      ds
+      docTransf
+      docCompVen
+      minuta
+      actaCoVe
+      imagen
     }
   }
 `;
 
-const GET_CATALOGOS = gql`
-  query {
-    todosEstados { codEstado desEstado }
-    todosGrupos {
-      codGrupo
-      codHijo
-      desGrupo
-      nivel
-      codPadre {
-        codGrupo
-        codHijo
-        nivel
-        codPadre {
-          codGrupo
-          codHijo
-          nivel
-        }
-      }
-    }
-    todasMarcas { codMarca desMarca }
-    todosModelos { codModelo desModelo codMarca { codMarca } }
-    todosIngresos {
-      nroIngreso
-      glosa
-      gestion
-      codOficDest {
-        codOfic
-        codDpto
-        nivel
-        codPadre {
-          codOfic
-          codDpto
-          nivel
-          codPadre {
-            codOfic
-            codDpto
-            nivel
-          }
-        }
-      }
-    }
-    todasGestiones { codGest gestIni }
-    todasCondiciones { codCond desCond }
-    todosProvedores { codProv nombre }
-    todasUnidades { codUnidad desUnidad }
-  }
-`;
-
-const CREAR_ACTIVO = gql`
-  mutation CrearActivo(
-    $codGest: Int!, $codActivo: String!, $codGrupo: Int!,
-    $descripcion: String!, $codEstado: Int!, $nroIngreso: Int!,
-    $monto: Float, $fecAdqui: Date, $nroSerie: String,
-    $codMarca: Int, $codModelo: Int, $codProve: Int, $codCond: Int, $codUnidad: Int
+const GUARDAR_VEHICULO = gql`
+  mutation GuardarVehiculo(
+    $nroActivo: Int!, $tipo: String, $marca: String, $modelo: String,
+    $anio: Int, $color: String, $placa: String, $motor: String, $chasis: String,
+    $cilindrada: Int, $industria: String, $ruat: String, $carnetProp: String,
+    $poliza: String, $factura: Int, $resMin: String, $resAdm: String,
+    $infTec: String, $leyEstado: String, $ds: String, $docTransf: String,
+    $docCompVen: String, $minuta: String, $actaCoVe: String, $imagen: String
   ) {
-    crearActivo(
-      codGest: $codGest, codActivo: $codActivo, codGrupo: $codGrupo,
-      descripcion: $descripcion, codEstado: $codEstado, nroIngreso: $nroIngreso,
-      monto: $monto, fecAdqui: $fecAdqui, nroSerie: $nroSerie,
-      codMarca: $codMarca, codModelo: $codModelo, codProve: $codProve,
-      codCond: $codCond, codUnidad: $codUnidad
+    guardarVehiculo(
+      nroActivo: $nroActivo, tipo: $tipo, marca: $marca, modelo: $modelo,
+      anio: $anio, color: $color, placa: $placa, motor: $motor, chasis: $chasis,
+      cilindrada: $cilindrada, industria: $industria, ruat: $ruat, carnetProp: $carnetProp,
+      poliza: $poliza, factura: $factura, resMin: $resMin, resAdm: $resAdm,
+      infTec: $infTec, leyEstado: $leyEstado, ds: $ds, docTransf: $docTransf,
+      docCompVen: $docCompVen, minuta: $minuta, actaCoVe: $actaCoVe, imagen: $imagen
     ) {
-      activo { nroActivo codActivo descripcion }
+      vehiculo {
+        nroActivo {
+          nroActivo
+        }
+        placa
+      }
     }
   }
 `;
@@ -180,7 +160,8 @@ function getGroupUnifiedCode(grupo: any): string {
 const FORM_VACIO = {
   codGest: '', codActivo: '', codGrupo: '', descripcion: '', codEstado: '',
   nroIngreso: '', monto: '', fecAdqui: '', nroSerie: '',
-  codMarca: '', codModelo: '', codProve: '', codCond: '', codUnidad: ''
+  codMarca: '', codModelo: '', codProve: '', codCond: '', codUnidad: '',
+  organismoFinanciador: '', codRube: '', nroConvenio: '', estadoRegistro: 'ELABORADO'
 };
 
 const ITEMS_POR_PAGINA = 8;
@@ -191,6 +172,7 @@ export default function Activos() {
   const puedeCrear = permisos.includes('crear_activo');
 
   const [showModal, setShowModal] = useState(false);
+  const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<any>(FORM_VACIO);
   const [grupoSelDes, setGrupoSelDes] = useState('');
   const [mensaje, setMensaje] = useState('');
@@ -199,6 +181,15 @@ export default function Activos() {
   const [paginaActual, setPaginaActual] = useState(1);
   const [selectedActivoSpecs, setSelectedActivoSpecs] = useState<any>(null);
   const [showSpecsModal, setShowSpecsModal] = useState(false);
+  const [showVehiculoModal, setShowVehiculoModal] = useState(false);
+  const [selectedActivoVehiculo, setSelectedActivoVehiculo] = useState<any>(null);
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const closeDropdown = () => setOpenDropdownId(null);
+    window.addEventListener('click', closeDropdown);
+    return () => window.removeEventListener('click', closeDropdown);
+  }, []);
 
   // Autocomplete search states for groups
   const [grupoSearch, setGrupoSearch] = useState('');
@@ -210,8 +201,10 @@ export default function Activos() {
   const [progresoLote, setProgresoLote] = useState({ actual: 0, total: 0 });
 
   const { data, loading, error: queryError, refetch } = useQuery(GET_ACTIVOS);
-  const { data: cats } = useQuery(GET_CATALOGOS);
+  const { data: cats } = useQuery(GET_CATALOGOS_ACTIVOS);
   const [crearActivo] = useMutation(CREAR_ACTIVO);
+  const [editarActivo] = useMutation(EDITAR_ACTIVO);
+  const [aprobarActivo] = useMutation(APROBAR_ACTIVO);
 
   const modelosFiltrados = cats?.todosModelos?.filter(
     (m: any) => !form.codMarca || String(m.codMarca?.codMarca) === String(form.codMarca)
@@ -256,6 +249,7 @@ export default function Activos() {
 
   // Autocomplete code generator
   useEffect(() => {
+    if (editId) return; // Do not auto-generate code when editing an existing asset
     if (form.nroIngreso && form.codGrupo && cats?.todosIngresos && cats?.todosGrupos) {
       const selectedIngreso = cats.todosIngresos.find((i: any) => String(i.nroIngreso) === String(form.nroIngreso));
       const selectedGroup = cats.todosGrupos.find((g: any) => String(g.codGrupo) === String(form.codGrupo));
@@ -275,7 +269,7 @@ export default function Activos() {
         setForm((prev: any) => ({ ...prev, codActivo: generated }));
       }
     }
-  }, [form.nroIngreso, form.codGrupo, cats?.todosIngresos, cats?.todosGrupos]);
+  }, [form.nroIngreso, form.codGrupo, cats?.todosIngresos, cats?.todosGrupos, editId]);
 
   // Creación en lote
   const handleSubmitLote = async () => {
@@ -328,6 +322,9 @@ export default function Activos() {
             codProve: form.codProve ? parseInt(form.codProve) : null,
             codCond: form.codCond ? parseInt(form.codCond) : null,
             codUnidad: form.codUnidad ? parseInt(form.codUnidad) : null,
+            organismoFinanciador: form.organismoFinanciador ? parseInt(form.organismoFinanciador) : null,
+            codRube: form.codRube || null,
+            nroConvenio: form.nroConvenio || null,
           }
         });
         exitos++;
@@ -350,7 +347,89 @@ export default function Activos() {
     }, 500);
   };
 
+  const handleEdit = (a: any) => {
+    setEditId(a.nroActivo);
+    setForm({
+      codGest: String(a.nroIngreso?.gestion?.codGest || ''),
+      codActivo: a.codActivo || '',
+      codGrupo: String(a.codGrupo?.codGrupo || ''),
+      descripcion: a.descripcion || '',
+      codEstado: String(a.codEstado?.codEstado || ''),
+      nroIngreso: String(a.nroIngreso?.nroIngreso || ''),
+      monto: a.monto ? String(a.monto) : '',
+      fecAdqui: a.fecAdqui || '',
+      nroSerie: a.nroSerie || '',
+      codMarca: String(a.codMarca?.codMarca || ''),
+      codModelo: String(a.codModelo?.codModelo || ''),
+      codProve: String(a.codProve?.codProv || ''),
+      codCond: String(a.codCond?.codCond || ''),
+      codUnidad: String(a.codUnidad?.codUnidad || ''),
+      organismoFinanciador: a.organismoFinanciador ? String(a.organismoFinanciador) : '',
+      codRube: a.codRube || '',
+      nroConvenio: a.nroConvenio || '',
+      estadoRegistro: a.estadoRegistro || 'ELABORADO'
+    });
+    setGrupoSelDes(a.codGrupo?.desGrupo || '');
+    const unified = a.codGrupo ? getGroupUnifiedCode(a.codGrupo) : '';
+    setGrupoSearch(a.codGrupo ? `[${unified}] ${a.codGrupo.desGrupo}` : '');
+    setShowModal(true);
+  };
+
+  const handleAprobar = async (nroActivo: any) => {
+    if (!window.confirm('¿Está seguro de que desea APROBAR este activo? Esta acción bloqueará campos contables y no podrá deshacerse.')) {
+      return;
+    }
+    try {
+      await aprobarActivo({
+        variables: { nroActivo: parseInt(String(nroActivo)) }
+      });
+      setMensaje('Activo aprobado correctamente');
+      refetch();
+      setTimeout(() => setMensaje(''), 3000);
+    } catch (e: any) {
+      setError('Error al aprobar activo: ' + e.message);
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
+
+
   const handleSubmitIndividual = async () => {
+    if (editId) {
+      try {
+        await editarActivo({
+          variables: {
+            nroActivo: parseInt(String(editId)),
+            descripcion: form.descripcion,
+            codEstado: form.codEstado ? parseInt(form.codEstado) : null,
+            codGrupo: form.codGrupo ? parseInt(form.codGrupo) : null,
+            codMarca: form.codMarca ? parseInt(form.codMarca) : null,
+            codModelo: form.codModelo ? parseInt(form.codModelo) : null,
+            codCond: form.codCond ? parseInt(form.codCond) : null,
+            codUnidad: form.codUnidad ? parseInt(form.codUnidad) : null,
+            monto: form.monto ? parseFloat(form.monto) : null,
+            nroSerie: form.nroSerie || null,
+            fecAdqui: form.fecAdqui || null,
+            organismoFinanciador: form.organismoFinanciador ? parseInt(form.organismoFinanciador) : null,
+            codRube: form.codRube || null,
+            nroConvenio: form.nroConvenio || null,
+          }
+        });
+        setMensaje('Activo editado correctamente');
+        setShowModal(false);
+        setForm(FORM_VACIO);
+        setEditId(null);
+        setGrupoSelDes('');
+        setGrupoSearch('');
+        refetch();
+        setTimeout(() => setMensaje(''), 3000);
+      } catch (e: any) {
+        setError('Error al editar: ' + e.message);
+        setTimeout(() => setError(''), 3000);
+      }
+      return;
+    }
+
     if (!puedeCrear) {
       setError('No tienes permiso para crear activos');
       setTimeout(() => setError(''), 3000);
@@ -380,6 +459,9 @@ export default function Activos() {
           codProve: form.codProve ? parseInt(form.codProve) : null,
           codCond: form.codCond ? parseInt(form.codCond) : null,
           codUnidad: form.codUnidad ? parseInt(form.codUnidad) : null,
+          organismoFinanciador: form.organismoFinanciador ? parseInt(form.organismoFinanciador) : null,
+          codRube: form.codRube || null,
+          nroConvenio: form.nroConvenio || null,
         }
       });
       setMensaje('Activo creado correctamente');
@@ -416,20 +498,12 @@ export default function Activos() {
   return (
     <div>
       {/* Mensajes */}
-      {mensaje && (
-        <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-3 rounded-xl mb-4">
-          {mensaje}
-        </div>
-      )}
-      {error && (
-        <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-xl mb-4">
-          {error}
-        </div>
-      )}
+      {mensaje && <div className="alert alert-success">{mensaje}</div>}
+      {error   && <div className="alert alert-danger">{error}</div>}
 
       {/* Header */}
-      <div className="page-header flex justify-between items-center mb-6">
-        <h1 className="page-title text-2xl font-bold text-white">📋 Activos Fijos</h1>
+      <div className="page-header">
+        <h1 className="page-title">📋 Activos Fijos</h1>
         {puedeCrear && (
           <button className="btn btn-primary" onClick={() => { setForm(FORM_VACIO); setGrupoSelDes(''); setGrupoSearch(''); setShowModal(true); }}>
             + Nuevo Activo
@@ -437,74 +511,190 @@ export default function Activos() {
         )}
       </div>
 
-      {/* Filtros */}
-      <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-3 mb-6">
-        <div className="flex gap-3">
-          <div className="flex-1">
-            <input
-              type="text"
-              placeholder="Buscar por código, descripción o serie..."
-              value={busqueda}
-              onChange={e => setBusqueda(e.target.value)}
-              className="w-full px-4 py-2.5 bg-slate-900/50 border border-slate-700/50 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-blue-500/50 transition-all text-sm"
-            />
-          </div>
-        </div>
+      {/* Barra de búsqueda */}
+      <div className="table-toolbar" style={{ marginBottom: '1rem' }}>
+        <input
+          type="text"
+          className="search-input"
+          placeholder="Buscar por código, descripción o serie..."
+          value={busqueda}
+          onChange={e => setBusqueda(e.target.value)}
+        />
       </div>
 
       {/* Tabla */}
-      <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-x-auto shadow-xl">
-        <table className="w-full text-left">
-          <thead className="bg-slate-700 border-b border-slate-600">
+      <div className="table-container" style={{ overflowX: 'auto' }}>
+        <table>
+          <thead>
             <tr>
-              <th className="px-4 py-3 text-slate-300 text-sm font-semibold">Código</th>
-              <th className="px-4 py-3 text-slate-300 text-sm font-semibold">Descripción</th>
-              <th className="px-4 py-3 text-slate-300 text-sm font-semibold">Grupo</th>
-              <th className="px-4 py-3 text-slate-300 text-sm font-semibold">Marca / Modelo</th>
-              <th className="px-4 py-3 text-slate-300 text-sm font-semibold">Monto (Bs.)</th>
-              <th className="px-4 py-3 text-slate-300 text-sm font-semibold">Fecha Adq.</th>
-              <th className="px-4 py-3 text-slate-300 text-sm font-semibold">Condición</th>
-              <th className="px-4 py-3 text-slate-300 text-sm font-semibold">Estado</th>
-              <th className="px-4 py-3 text-slate-300 text-sm font-semibold">Acciones</th>
+              <th>Código</th>
+              <th>Descripción</th>
+              <th>Grupo</th>
+              <th>Marca / Modelo</th>
+              <th>Monto (Bs.)</th>
+              <th>Fecha Adq.</th>
+              <th>Condición</th>
+              <th>Estado</th>
+              <th>Registro</th>
+              <th>Acciones</th>
             </tr>
           </thead>
           <tbody>
             {activosPaginados.length === 0 && (
-              <tr><td colSpan={9} className="px-4 py-12 text-center text-slate-500">No hay activos registrados</td></tr>
+              <tr><td colSpan={10} className="table-empty">No hay activos registrados</td></tr>
             )}
             {activosPaginados.map((a: any) => (
-              <tr key={a.nroActivo} className="border-b border-slate-700 hover:bg-slate-750 transition">
-                <td className="px-4 py-3 font-mono text-blue-400 text-sm">{a.codActivo}</td>
-                <td className="px-4 py-3 text-slate-300 text-sm">{a.descripcion}</td>
-                <td className="px-4 py-3 text-slate-300 text-sm">{a.codGrupo?.desGrupo || '-'}</td>
-                <td className="px-4 py-3 text-slate-300 text-sm">
+              <tr key={a.nroActivo}>
+                <td><strong style={{ fontFamily: 'monospace', color: 'var(--primary)' }}>{a.codActivo}</strong></td>
+                <td>{a.descripcion}</td>
+                <td>{a.codGrupo?.desGrupo || '-'}</td>
+                <td>
                   {a.codMarca?.desMarca ? `${a.codMarca.desMarca}${a.codModelo?.desModelo ? ' / ' + a.codModelo.desModelo : ''}` : '-'}
                 </td>
-                <td className="px-4 py-3 text-emerald-400 font-medium text-sm">
+                <td style={{ color: 'var(--secondary)', fontWeight: 600 }}>
                   {a.monto ? parseFloat(a.monto).toLocaleString('es-BO', { minimumFractionDigits: 2 }) : '-'}
                 </td>
-                <td className="px-4 py-3 text-slate-300 text-sm">{a.fecAdqui || '-'}</td>
-                <td className="px-4 py-3 text-slate-300 text-sm">{a.codCond?.desCond || '-'}</td>
-                <td className="px-4 py-3">
-                  <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
-                    a.codEstado?.desEstado === 'ACTIVO' ? 'bg-emerald-500/10 text-emerald-400' :
-                    a.codEstado?.desEstado === 'BAJA' ? 'bg-red-500/10 text-red-400' :
-                    'bg-slate-500/10 text-slate-400'
-                  }`}>
-                    {a.codEstado?.desEstado || '-'}
-                  </span>
+                <td>{a.fecAdqui || '-'}</td>
+                <td>{a.codCond?.desCond || '-'}</td>
+                <td>
+                  <span className={`badge ${
+                    a.codEstado?.desEstado === 'ACTIVO' ? 'badge-success' :
+                    a.codEstado?.desEstado === 'BAJA'   ? 'badge-danger'  :
+                    'badge-secondary'
+                  }`}>{a.codEstado?.desEstado || '-'}</span>
                 </td>
-                <td className="px-4 py-3">
-                  <button
-                    className="btn btn-info btn-sm"
-                    style={{ padding: '3px 8px', fontSize: '0.75rem' }}
-                    onClick={() => {
-                      setSelectedActivoSpecs(a);
-                      setShowSpecsModal(true);
-                    }}
-                  >
-                    ⚙️ Specs
-                  </button>
+                <td>
+                  <span className={`badge ${
+                    a.estadoRegistro === 'APROBADO' ? 'badge-success' : 'badge-warning'
+                  }`}>{a.estadoRegistro || 'ELABORADO'}</span>
+                </td>
+                <td className="px-4 py-3" style={{ position: 'relative' }}>
+                  <div style={{ display: 'inline-block', position: 'relative' }}>
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      style={{ padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem' }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenDropdownId(openDropdownId === String(a.nroActivo) ? null : String(a.nroActivo));
+                      }}
+                    >
+                      Acciones ▾
+                    </button>
+                    {openDropdownId === String(a.nroActivo) && (
+                      <div
+                        className="dropdown-menu"
+                        style={{
+                          position: 'absolute',
+                          right: 0,
+                          top: '100%',
+                          background: '#ffffff',
+                          border: '1px solid #cbd5e1',
+                          borderRadius: '8px',
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                          zIndex: 999,
+                          minWidth: '130px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          padding: '4px 0',
+                          marginTop: '4px'
+                        }}
+                        onClick={e => e.stopPropagation()}
+                      >
+                        <button
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            padding: '8px 12px',
+                            textAlign: 'left',
+                            fontSize: '0.8rem',
+                            color: '#334155',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}
+                          onClick={() => {
+                            setOpenDropdownId(null);
+                            handleEdit(a);
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                          onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                        >
+                          ✏️ Editar
+                        </button>
+                        {a.estadoRegistro !== 'APROBADO' && (
+                          <button
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              padding: '8px 12px',
+                              textAlign: 'left',
+                              fontSize: '0.8rem',
+                              color: '#16a34a',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px'
+                            }}
+                            onClick={() => {
+                              setOpenDropdownId(null);
+                              handleAprobar(a.nroActivo);
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                          >
+                            ✅ Aprobar
+                          </button>
+                        )}
+                        <button
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            padding: '8px 12px',
+                            textAlign: 'left',
+                            fontSize: '0.8rem',
+                            color: '#2563eb',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}
+                          onClick={() => {
+                            setOpenDropdownId(null);
+                            setSelectedActivoSpecs(a);
+                            setShowSpecsModal(true);
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                          onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                        >
+                          ⚙️ Specs
+                        </button>
+                        <button
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            padding: '8px 12px',
+                            textAlign: 'left',
+                            fontSize: '0.8rem',
+                            color: '#d97706',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}
+                          onClick={() => {
+                            setOpenDropdownId(null);
+                            setSelectedActivoVehiculo(a);
+                            setShowVehiculoModal(true);
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                          onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                        >
+                          🚗 Ficha
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -514,38 +704,32 @@ export default function Activos() {
 
       {/* Paginación */}
       {totalPaginas > 1 && (
-        <div className="flex items-center justify-between mt-6 bg-slate-800/80 border border-slate-700/60 rounded-2xl px-5 py-4">
-          <span className="text-slate-400 text-sm">
-            Página {paginaActualSegura} de {totalPaginas}
-          </span>
-          <div className="flex gap-2">
-            <button 
-              onClick={() => setPaginaActual(p => Math.max(1, p - 1))} 
-              disabled={paginaActualSegura === 1} 
-              className="px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-slate-300 text-sm hover:bg-slate-600 disabled:opacity-40 disabled:cursor-not-allowed transition"
-            >
-              Anterior
-            </button>
-            <button 
-              onClick={() => setPaginaActual(p => Math.min(totalPaginas, p + 1))} 
-              disabled={paginaActualSegura === totalPaginas} 
-              className="px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg text-slate-300 text-sm hover:bg-slate-600 disabled:opacity-40 disabled:cursor-not-allowed transition"
-            >
-              Siguiente
-            </button>
+        <div className="pagination">
+          <span>Página {paginaActualSegura} de {totalPaginas} — {activosFiltrados.length} registros</span>
+          <div className="pagination-controls">
+            <button
+              className="pagination-btn"
+              onClick={() => setPaginaActual(p => Math.max(1, p - 1))}
+              disabled={paginaActualSegura === 1}
+            >Anterior</button>
+            <button
+              className="pagination-btn"
+              onClick={() => setPaginaActual(p => Math.min(totalPaginas, p + 1))}
+              disabled={paginaActualSegura === totalPaginas}
+            >Siguiente</button>
           </div>
         </div>
       )}
 
       {/* Modal */}
 {showModal && (
-  <div className="modal-overlay" onClick={() => setShowModal(false)}>
+  <div className="modal-overlay" onClick={() => { setShowModal(false); setEditId(null); }}>
     <div className="modal-container" onClick={e => e.stopPropagation()}>
       
       {/* Header */}
       <div className="modal-header">
-        <h2>Registrar Activo</h2>
-        <button className="modal-close" onClick={() => setShowModal(false)}>
+        <h2>{editId ? 'Editar Activo' : 'Registrar Activo'}</h2>
+        <button className="modal-close" onClick={() => { setShowModal(false); setEditId(null); }}>
           ✕
         </button>
       </div>
@@ -556,7 +740,7 @@ export default function Activos() {
           <div className="form-grid">
             <div className="form-group">
               <label>Gestión *</label>
-              <select name="codGest" value={form.codGest} onChange={handleChange}>
+              <select name="codGest" value={form.codGest} onChange={handleChange} disabled={editId !== null}>
                 <option value="">Seleccionar...</option>
                 {cats?.todasGestiones?.map((g: any) => (
                   <option key={g.codGest} value={g.codGest}>{g.gestIni}</option>
@@ -565,7 +749,7 @@ export default function Activos() {
             </div>
             <div className="form-group">
               <label>Ingreso *</label>
-              <select name="nroIngreso" value={form.nroIngreso} onChange={handleChange}>
+              <select name="nroIngreso" value={form.nroIngreso} onChange={handleChange} disabled={editId !== null}>
                 <option value="">Seleccionar...</option>
                 {cats?.todosIngresos?.map((i: any) => (
                   <option key={i.nroIngreso} value={i.nroIngreso}>#{i.nroIngreso} - {i.glosa || 'Sin glosa'}</option>
@@ -576,7 +760,7 @@ export default function Activos() {
 
           <div className="form-group form-group-full">
             <label>Código Activo *</label>
-            <input name="codActivo" value={form.codActivo} onChange={handleChange} placeholder="Ej: U101010001" />
+            <input name="codActivo" value={form.codActivo} onChange={handleChange} placeholder="Ej: U101010001" disabled={editId !== null} />
           </div>
 
           <div className="form-group form-group-full">
@@ -596,11 +780,12 @@ export default function Activos() {
                     setForm({ ...form, codGrupo: '' });
                     setShowGruposDropdown(true);
                   }}
-                  onFocus={() => setShowGruposDropdown(true)}
+                  onFocus={() => { if (editId === null || form.estadoRegistro !== 'APROBADO') setShowGruposDropdown(true); }}
                   onBlur={() => setTimeout(() => setShowGruposDropdown(false), 200)}
                   placeholder="Buscar código o descripción..."
+                  disabled={editId !== null && form.estadoRegistro === 'APROBADO'}
                 />
-                {showGruposDropdown && (
+                {showGruposDropdown && (editId === null || form.estadoRegistro !== 'APROBADO') && (
                   <ul className="autocomplete-dropdown">
                     {filteredGrupos.slice(0, 20).map((g: any) => {
                       const unified = getGroupUnifiedCode(g);
@@ -635,18 +820,18 @@ export default function Activos() {
           <div className="form-grid">
             <div className="form-group">
               <label>Monto (Bs.)</label>
-              <input type="number" name="monto" value={form.monto} onChange={handleChange} placeholder="0.00" />
+              <input type="number" name="monto" value={form.monto} onChange={handleChange} placeholder="0.00" disabled={editId !== null && form.estadoRegistro === 'APROBADO'} />
             </div>
             <div className="form-group">
               <label>Fecha Adquisición</label>
-              <input type="date" name="fecAdqui" value={form.fecAdqui} onChange={handleChange} />
+              <input type="date" name="fecAdqui" value={form.fecAdqui} onChange={handleChange} disabled={editId !== null && form.estadoRegistro === 'APROBADO'} />
             </div>
           </div>
 
           <div className="form-grid">
             <div className="form-group">
               <label>Condición</label>
-              <select name="codCond" value={form.codCond} onChange={handleChange}>
+              <select name="codCond" value={form.codCond} onChange={handleChange} disabled={editId !== null && form.estadoRegistro === 'APROBADO'}>
                 <option value="">Seleccionar...</option>
                 {cats?.todasCondiciones?.map((c: any) => (
                   <option key={c.codCond} value={c.codCond}>{c.desCond}</option>
@@ -655,7 +840,7 @@ export default function Activos() {
             </div>
             <div className="form-group">
               <label>Unidad</label>
-              <select name="codUnidad" value={form.codUnidad} onChange={handleChange}>
+              <select name="codUnidad" value={form.codUnidad} onChange={handleChange} disabled={editId !== null && form.estadoRegistro === 'APROBADO'}>
                 <option value="">Seleccionar...</option>
                 {cats?.todasUnidades?.map((u: any) => (
                   <option key={u.codUnidad} value={u.codUnidad}>{u.desUnidad}</option>
@@ -666,12 +851,29 @@ export default function Activos() {
 
           <div className="form-group form-group-full">
             <label>Proveedor</label>
-            <select name="codProve" value={form.codProve} onChange={handleChange}>
+            <select name="codProve" value={form.codProve} onChange={handleChange} disabled={editId !== null}>
               <option value="">Seleccionar...</option>
               {cats?.todosProvedores?.map((p: any) => (
                 <option key={p.codProv} value={p.codProv}>{p.nombre}</option>
               ))}
             </select>
+          </div>
+
+          <hr className="section-divider" />
+          <h3 className="section-title">Datos Fiscales / Control (VSIAF)</h3>
+          <div className="form-grid">
+            <div className="form-group">
+              <label>Organismo Financiador</label>
+              <input type="number" name="organismoFinanciador" value={form.organismoFinanciador} onChange={handleChange} placeholder="Ej: 11" />
+            </div>
+            <div className="form-group">
+              <label>Código RUBE</label>
+              <input type="text" name="codRube" value={form.codRube} onChange={handleChange} placeholder="Ej: R-1234" />
+            </div>
+          </div>
+          <div className="form-group form-group-full">
+            <label>Nro. Convenio</label>
+            <input type="text" name="nroConvenio" value={form.nroConvenio} onChange={handleChange} placeholder="Ej: Conv. MEFP-2026" />
           </div>
 
           {!esSimple && (
@@ -685,7 +887,7 @@ export default function Activos() {
                 </div>
                 <div className="form-group">
                   <label>Marca</label>
-                  <select name="codMarca" value={form.codMarca} onChange={handleChange}>
+                  <select name="codMarca" value={form.codMarca} onChange={handleChange} disabled={editId !== null && form.estadoRegistro === 'APROBADO'}>
                     <option value="">Seleccionar...</option>
                     {cats?.todasMarcas?.map((m: any) => (
                       <option key={m.codMarca} value={m.codMarca}>{m.desMarca}</option>
@@ -695,7 +897,7 @@ export default function Activos() {
               </div>
               <div className="form-group form-group-full">
                 <label>Modelo</label>
-                <select name="codModelo" value={form.codModelo} onChange={handleChange}>
+                <select name="codModelo" value={form.codModelo} onChange={handleChange} disabled={editId !== null && form.estadoRegistro === 'APROBADO'}>
                   <option value="">Seleccionar...</option>
                   {modelosFiltrados.map((m: any) => (
                     <option key={m.codModelo} value={m.codModelo}>{m.desModelo}</option>
@@ -705,30 +907,32 @@ export default function Activos() {
             </>
           )}
 
-          <div className="form-group form-group-full">
-            <label>Cantidad a crear</label>
-            <input 
-              type="number" 
-              min="1" 
-              value={String(cantidadLote)} 
-              onChange={e => setCantidadLote(parseInt(e.target.value) || 1)} 
-              placeholder="1" 
-            />
-            {creandoLote && (
-              <div className="mt-2 bg-blue-500/10 border border-blue-500/20 rounded-lg p-2 text-center">
-                <p className="text-blue-400 text-sm">Creando {progresoLote.actual} de {progresoLote.total}...</p>
-                <div className="mt-1 h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                  <div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${(progresoLote.actual / progresoLote.total) * 100}%` }} />
+          {editId === null && (
+            <div className="form-group form-group-full">
+              <label>Cantidad a crear</label>
+              <input 
+                type="number" 
+                min="1" 
+                value={String(cantidadLote)} 
+                onChange={e => setCantidadLote(parseInt(e.target.value) || 1)} 
+                placeholder="1" 
+              />
+              {creandoLote && (
+                <div className="mt-2 bg-blue-500/10 border border-blue-500/20 rounded-lg p-2 text-center">
+                  <p className="text-blue-400 text-sm">Creando {progresoLote.actual} de {progresoLote.total}...</p>
+                  <div className="mt-1 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                    <div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${(progresoLote.actual / progresoLote.total) * 100}%` }} />
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
 
           <div className="modal-actions">
-            <button className="btn btn-primary" onClick={cantidadLote > 1 ? handleSubmitLote : handleSubmitIndividual}>
-              Registrar Activo
+            <button className="btn btn-primary" onClick={editId ? handleSubmitIndividual : (cantidadLote > 1 ? handleSubmitLote : handleSubmitIndividual)}>
+              {editId ? 'Guardar Cambios' : 'Registrar Activo'}
             </button>
-            <button className="btn btn-secondary" onClick={() => setShowModal(false)}>
+            <button className="btn btn-secondary" onClick={() => { setShowModal(false); setEditId(null); }}>
               Cancelar
             </button>
           </div>
@@ -743,6 +947,15 @@ export default function Activos() {
           onClose={() => {
             setShowSpecsModal(false);
             setSelectedActivoSpecs(null);
+          }}
+        />
+      )}
+      {showVehiculoModal && selectedActivoVehiculo && (
+        <VehiculoModal
+          activo={selectedActivoVehiculo}
+          onClose={() => {
+            setShowVehiculoModal(false);
+            setSelectedActivoVehiculo(null);
           }}
         />
       )}
@@ -767,8 +980,8 @@ function SpecsModal({ activo, onClose }: { activo: any; onClose: () => void }) {
   const [tempValues, setTempValues] = useState<Record<number, { codDetAtrib: string; valor: string }>>({});
   const [savingAtribId, setSavingAtribId] = useState<number | null>(null);
 
-  if (loading) return <div className="modal-overlay"><div className="modal" style={{ background: '#1e293b', color: 'white' }}>Cargando especificaciones...</div></div>;
-  if (error) return <div className="modal-overlay"><div className="modal" style={{ background: '#1e293b', color: 'white' }}>Error: {error.message}</div></div>;
+  if (loading) return <div className="modal-overlay"><div className="modal">Cargando especificaciones...</div></div>;
+  if (error)   return <div className="modal-overlay"><div className="modal">Error: {error.message}</div></div>;
 
   const activeSpecs = data?.atribActivosPorActivo || [];
   const groupAttributes = data?.atributosPorGrupo || [];
@@ -837,96 +1050,51 @@ function SpecsModal({ activo, onClose }: { activo: any; onClose: () => void }) {
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()} style={{ width: '600px', maxWidth: '95vw', background: '#1e293b', color: 'white', border: '1px solid #334155' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', borderBottom: '1px solid #334155', paddingBottom: '0.75rem' }}>
-          <h2 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#3b82f6', margin: 0 }}>
-            ⚙️ Especificaciones Técnicas
-          </h2>
-          <button style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '1.5rem', cursor: 'pointer' }} onClick={onClose}>×</button>
+      <div className="modal" onClick={e => e.stopPropagation()} style={{ width: '620px' }}>
+        <h2 className="modal-title">⚙️ Especificaciones Técnicas</h2>
+
+        <div style={{ marginBottom: '1rem', background: 'var(--bg-surface)', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid var(--border)' }}>
+          <p style={{ margin: '0 0 0.25rem', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>Activo Fijo:</p>
+          <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: 'var(--primary)' }}>[{activo.codActivo}] {activo.descripcion}</p>
+          <p style={{ margin: '0.25rem 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>Grupo: {activo.codGrupo?.desGrupo}</p>
         </div>
 
-        <div style={{ marginBottom: '1rem', background: '#0f172a', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid #334155' }}>
-          <p style={{ margin: '0 0 0.25rem', fontSize: '0.8rem', color: '#94a3b8' }}>Activo Fijo:</p>
-          <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600 }}>[{activo.codActivo}] {activo.descripcion}</p>
-          <p style={{ margin: '0.25rem 0 0', fontSize: '0.8rem', color: '#64748b' }}>Grupo: {activo.codGrupo?.desGrupo}</p>
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '400px', overflowY: 'auto', paddingRight: '4px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '420px', overflowY: 'auto', paddingRight: '4px' }}>
           {groupAttributes.length === 0 ? (
-            <p style={{ color: '#94a3b8', fontStyle: 'italic', textAlign: 'center', padding: '1rem' }}>
-              Este grupo de activos no tiene atributos configurados. Configúralos en Catálogos &gt; Atributos.
-            </p>
+            <p className="empty">Este grupo no tiene atributos configurados. Agrégalos en Catálogos &gt; Atributos.</p>
           ) : (
             groupAttributes.map((atrib: any) => {
-              // Find if this attribute is already assigned to the asset
               const assigned = activeSpecs.find(
                 (spec: any) => spec.codDetAtrib?.codAtrib?.codAtrib === atrib.codAtrib && spec.ok === 'S'
               );
-
               const currentVal = tempValues[atrib.codAtrib] || {
                 codDetAtrib: assigned?.codDetAtrib?.codDetAtrib?.toString() || '',
                 valor: assigned?.valor || ''
               };
-
               const options = atrib.inDetAtribSet?.filter((o: any) => o.aB === 'A') || [];
 
               return (
-                <div key={atrib.codAtrib} style={{ background: '#111827', border: '1px solid #334155', borderRadius: '8px', padding: '0.85rem' }}>
-                  <div style={{ fontWeight: 600, fontSize: '0.85rem', color: '#f8fafc', marginBottom: '0.5rem' }}>
-                    {atrib.des}
-                  </div>
-
+                <div key={atrib.codAtrib} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '8px', padding: '0.85rem' }}>
+                  <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--primary)', marginBottom: '0.5rem' }}>{atrib.des}</div>
                   <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-                    {/* Selector de Detalle/Opción */}
-                    <div style={{ flex: 1, minWidth: '160px' }}>
-                      <label style={{ fontSize: '0.72rem', color: '#94a3b8', display: 'block', marginBottom: '0.2rem' }}>Opción *</label>
-                      <select
-                        value={currentVal.codDetAtrib}
-                        onChange={e => setTempValues({
-                          ...tempValues,
-                          [atrib.codAtrib]: { ...currentVal, codDetAtrib: e.target.value }
-                        })}
-                        style={{ width: '100%', padding: '0.45rem', borderRadius: '6px', background: '#1f2937', border: '1px solid #374151', color: 'white' }}
-                      >
+                    <div className="form-group" style={{ flex: 1, minWidth: '150px', margin: 0 }}>
+                      <label>Opción *</label>
+                      <select value={currentVal.codDetAtrib} onChange={e => setTempValues({ ...tempValues, [atrib.codAtrib]: { ...currentVal, codDetAtrib: e.target.value } })}>
                         <option value="">Seleccione...</option>
-                        {options.map((o: any) => (
-                          <option key={o.codDetAtrib} value={o.codDetAtrib}>{o.des}</option>
-                        ))}
+                        {options.map((o: any) => <option key={o.codDetAtrib} value={o.codDetAtrib}>{o.des}</option>)}
                       </select>
                     </div>
-
-                    {/* Campo Valor Manual */}
-                    <div style={{ flex: 1, minWidth: '160px' }}>
-                      <label style={{ fontSize: '0.72rem', color: '#94a3b8', display: 'block', marginBottom: '0.2rem' }}>Valor Libre / Unidad</label>
-                      <input
-                        type="text"
-                        placeholder="Ej: 16 GB, Intel i7, etc."
-                        value={currentVal.valor}
-                        onChange={e => setTempValues({
-                          ...tempValues,
-                          [atrib.codAtrib]: { ...currentVal, valor: e.target.value }
-                        })}
-                        style={{ width: '100%', padding: '0.45rem', borderRadius: '6px', background: '#1f2937', border: '1px solid #374151', color: 'white' }}
-                      />
+                    <div className="form-group" style={{ flex: 1, minWidth: '150px', margin: 0 }}>
+                      <label>Valor / Unidad</label>
+                      <input type="text" placeholder="Ej: 16 GB, Intel i7..." value={currentVal.valor} onChange={e => setTempValues({ ...tempValues, [atrib.codAtrib]: { ...currentVal, valor: e.target.value } })} />
                     </div>
-
-                    {/* Botón Guardar */}
-                    <div>
-                      <button
-                        className="btn btn-primary btn-sm"
-                        style={{ padding: '0.45rem 0.85rem' }}
-                        disabled={savingAtribId === atrib.codAtrib}
-                        onClick={() => handleSave(atrib.codAtrib, currentVal.codDetAtrib, currentVal.valor)}
-                      >
-                        {savingAtribId === atrib.codAtrib ? '...' : 'Guardar'}
-                      </button>
-                    </div>
+                    <button className="btn btn-primary btn-sm" disabled={savingAtribId === atrib.codAtrib} onClick={() => handleSave(atrib.codAtrib, currentVal.codDetAtrib, currentVal.valor)}>
+                      {savingAtribId === atrib.codAtrib ? '...' : 'Guardar'}
+                    </button>
                   </div>
-
                   {assigned && (
-                    <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: '#34d399', display: 'flex', gap: '0.4rem', background: '#064e3b/30', padding: '4px 8px', borderRadius: '4px' }}>
-                      <span>Valor asignado actual:</span>
-                      <strong>{assigned.codDetAtrib?.des} {assigned.valor ? ` — ${assigned.valor}` : ''}</strong>
+                    <div style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: 'var(--secondary)', display: 'flex', gap: '0.4rem', alignItems: 'center' }}>
+                      ✅ Asignado: <strong>{assigned.codDetAtrib?.des}{assigned.valor ? ` — ${assigned.valor}` : ''}</strong>
                     </div>
                   )}
                 </div>
@@ -935,8 +1103,326 @@ function SpecsModal({ activo, onClose }: { activo: any; onClose: () => void }) {
           )}
         </div>
 
-        <div className="modal-actions" style={{ borderTop: '1px solid #334155', marginTop: '1.25rem', paddingTop: '0.75rem' }}>
+        <div className="modal-actions">
           <button className="btn btn-secondary" onClick={onClose}>Cerrar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ==================== VEHICULO MODAL SUBCOMPONENT ====================
+function VehiculoModal({ activo, onClose }: { activo: any; onClose: () => void }) {
+  const nroActivo = activo.nroActivo;
+  const { data, loading } = useQuery(GET_VEHICULO, {
+    variables: { nroActivo: parseInt(nroActivo) },
+    skip: !nroActivo
+  });
+
+  const [guardarVehiculo] = useMutation(GUARDAR_VEHICULO);
+  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const [form, setForm] = useState({
+    tipo: '',
+    marca: '',
+    modelo: '',
+    anio: '',
+    color: '',
+    placa: '',
+    motor: '',
+    chasis: '',
+    cilindrada: '',
+    industria: '',
+    ruat: '',
+    carnetProp: '',
+    poliza: '',
+    factura: '',
+    resMin: '',
+    resAdm: '',
+    infTec: '',
+    leyEstado: '',
+    ds: '',
+    docTransf: '',
+    docCompVen: '',
+    minuta: '',
+    actaCoVe: '',
+    imagen: ''
+  });
+
+  useEffect(() => {
+    if (data?.vehiculoPorActivo) {
+      const v = data.vehiculoPorActivo;
+      setForm({
+        tipo: v.tipo || '',
+        marca: v.marca || '',
+        modelo: v.modelo || '',
+        anio: v.anio ? String(v.anio) : '',
+        color: v.color || '',
+        placa: v.placa || '',
+        motor: v.motor || '',
+        chasis: v.chasis || '',
+        cilindrada: v.cilindrada ? String(v.cilindrada) : '',
+        industria: v.industria || '',
+        ruat: v.ruat || '',
+        carnetProp: v.carnetProp || '',
+        poliza: v.poliza || '',
+        factura: v.factura ? String(v.factura) : '',
+        resMin: v.resMin || '',
+        resAdm: v.resAdm || '',
+        infTec: v.infTec || '',
+        leyEstado: v.leyEstado || '',
+        ds: v.ds || '',
+        docTransf: v.docTransf || '',
+        docCompVen: v.docCompVen || '',
+        minuta: v.minuta || '',
+        actaCoVe: v.actaCoVe || '',
+        imagen: v.imagen || ''
+      });
+    }
+  }, [data]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await fetch('http://localhost:8000/upload_image/', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'Error al subir la imagen');
+      }
+
+      const result = await response.json();
+      setForm(prev => ({ ...prev, imagen: result.filePath }));
+      alert('📸 Imagen subida correctamente');
+    } catch (err: any) {
+      alert('⚠️ Error al subir la imagen: ' + err.message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await guardarVehiculo({
+        variables: {
+          nroActivo: parseInt(nroActivo),
+          tipo: form.tipo,
+          marca: form.marca,
+          modelo: form.modelo,
+          anio: form.anio ? parseInt(form.anio) : null,
+          color: form.color,
+          placa: form.placa,
+          motor: form.motor,
+          chasis: form.chasis,
+          cilindrada: form.cilindrada ? parseInt(form.cilindrada) : null,
+          industria: form.industria,
+          ruat: form.ruat,
+          carnetProp: form.carnetProp,
+          poliza: form.poliza,
+          factura: form.factura ? parseInt(form.factura) : null,
+          resMin: form.resMin,
+          resAdm: form.resAdm,
+          infTec: form.infTec,
+          leyEstado: form.leyEstado,
+          ds: form.ds,
+          docTransf: form.docTransf,
+          docCompVen: form.docCompVen,
+          minuta: form.minuta,
+          actaCoVe: form.actaCoVe,
+          imagen: form.imagen
+        }
+      });
+      alert('🚗 Ficha de vehículo guardada correctamente');
+      onClose();
+    } catch (err: any) {
+      alert('❌ Error al guardar: ' + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-container" onClick={e => e.stopPropagation()} style={{ width: '800px', maxWidth: '95vw', padding: '1.5rem', background: '#ffffff', color: '#1e293b' }}>
+        <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '2px solid #f0f2f5', paddingBottom: '0.5rem', background: '#ffffff' }}>
+          <h2 className="modal-title" style={{ margin: 0, color: '#1a3c6e' }}>🚗 Ficha Técnica de Vehículo</h2>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+
+        <div style={{ marginBottom: '1rem', background: '#f8fafc', padding: '0.75rem 1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+          <p style={{ margin: '0 0 0.25rem', fontSize: '0.8rem', color: '#64748b' }}>Activo Asociado:</p>
+          <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: '#1a3c6e' }}>[{activo.codActivo}] {activo.descripcion}</p>
+        </div>
+
+        {loading ? (
+          <div style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>Cargando datos del vehículo...</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', maxHeight: '60vh', overflowY: 'auto', paddingRight: '6px' }}>
+            
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1.5rem' }}>
+              {/* Imagen y Carga */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center', background: '#f8fafc', padding: '1rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>Fotografía</span>
+                <div style={{ width: '100%', height: '140px', background: '#f1f5f9', borderRadius: '6px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px dashed #cbd5e1', position: 'relative' }}>
+                  {form.imagen ? (
+                    <img 
+                      src={`http://localhost:8000${form.imagen}`} 
+                      alt="Vehículo" 
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      onError={(e) => {
+                        const img = e.currentTarget;
+                        if (img.src.includes('http://localhost:8000/media/')) {
+                          img.src = form.imagen; 
+                        }
+                      }}
+                    />
+                  ) : (
+                    <span style={{ color: '#94a3b8', fontSize: '2.5rem' }}>🚗</span>
+                  )}
+                  {uploading && (
+                    <div style={{ position: 'absolute', inset: 0, background: 'rgba(241, 245, 249, 0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', color: '#1a3c6e' }}>
+                      Subiendo...
+                    </div>
+                  )}
+                </div>
+                <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer', textAlign: 'center', width: '100%', display: 'block' }}>
+                  {form.imagen ? 'Cambiar Foto' : 'Subir Foto'}
+                  <input type="file" accept="image/*" onChange={handleImageUpload} style={{ display: 'none' }} />
+                </label>
+              </div>
+
+              {/* Grid de campos principales */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div className="form-group">
+                  <label>Tipo de Vehículo</label>
+                  <input type="text" name="tipo" value={form.tipo} onChange={handleChange} placeholder="Ej: Camioneta, Sedan" />
+                </div>
+                <div className="form-group">
+                  <label>Placa</label>
+                  <input type="text" name="placa" value={form.placa} onChange={handleChange} placeholder="Ej: 1234ABC" />
+                </div>
+                <div className="form-group">
+                  <label>Marca</label>
+                  <input type="text" name="marca" value={form.marca} onChange={handleChange} placeholder="Ej: Toyota" />
+                </div>
+                <div className="form-group">
+                  <label>Modelo</label>
+                  <input type="text" name="modelo" value={form.modelo} onChange={handleChange} placeholder="Ej: Hilux" />
+                </div>
+                <div className="form-group">
+                  <label>Año</label>
+                  <input type="number" name="anio" value={form.anio} onChange={handleChange} placeholder="Ej: 2020" />
+                </div>
+                <div className="form-group">
+                  <label>Color</label>
+                  <input type="text" name="color" value={form.color} onChange={handleChange} placeholder="Ej: Blanco" />
+                </div>
+              </div>
+            </div>
+
+            <hr style={{ border: 'none', borderTop: '1px solid #e2e8f0', margin: '0.25rem 0' }} />
+
+            <h3 style={{ fontSize: '0.9rem', color: '#1a3c6e', margin: 0, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Identificación y Mecánica</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
+              <div className="form-group">
+                <label>Motor</label>
+                <input type="text" name="motor" value={form.motor} onChange={handleChange} placeholder="Nro de Motor" />
+              </div>
+              <div className="form-group">
+                <label>Chasis</label>
+                <input type="text" name="chasis" value={form.chasis} onChange={handleChange} placeholder="Nro de Chasis" />
+              </div>
+              <div className="form-group">
+                <label>Cilindrada (cc)</label>
+                <input type="number" name="cilindrada" value={form.cilindrada} onChange={handleChange} placeholder="Ej: 2400" />
+              </div>
+              <div className="form-group">
+                <label>Industria</label>
+                <input type="text" name="industria" value={form.industria} onChange={handleChange} placeholder="Ej: Japón, Brasil" />
+              </div>
+              <div className="form-group">
+                <label>RUAT</label>
+                <input type="text" name="ruat" value={form.ruat} onChange={handleChange} placeholder="Nro RUAT" />
+              </div>
+              <div className="form-group">
+                <label>Carnet Propietario</label>
+                <input type="text" name="carnetProp" value={form.carnetProp} onChange={handleChange} placeholder="Nro CRP" />
+              </div>
+            </div>
+
+            <hr style={{ border: 'none', borderTop: '1px solid #e2e8f0', margin: '0.25rem 0' }} />
+
+            <h3 style={{ fontSize: '0.9rem', color: '#1a3c6e', margin: 0, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Documentación y Resoluciones</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
+              <div className="form-group">
+                <label>Póliza</label>
+                <input type="text" name="poliza" value={form.poliza} onChange={handleChange} placeholder="Nro de Póliza" />
+              </div>
+              <div className="form-group">
+                <label>Factura</label>
+                <input type="number" name="factura" value={form.factura} onChange={handleChange} placeholder="Nro de Factura" />
+              </div>
+              <div className="form-group">
+                <label>Res. Ministerial</label>
+                <input type="text" name="resMin" value={form.resMin} onChange={handleChange} placeholder="Resolución Min." />
+              </div>
+              <div className="form-group">
+                <label>Res. Administrativa</label>
+                <input type="text" name="resAdm" value={form.resAdm} onChange={handleChange} placeholder="Resolución Adm." />
+              </div>
+              <div className="form-group">
+                <label>Informe Técnico</label>
+                <input type="text" name="infTec" value={form.infTec} onChange={handleChange} placeholder="Informe Técnico" />
+              </div>
+              <div className="form-group">
+                <label>Ley del Estado</label>
+                <input type="text" name="leyEstado" value={form.leyEstado} onChange={handleChange} placeholder="Ley del Estado" />
+              </div>
+              <div className="form-group">
+                <label>D.S. (Decreto Supremo)</label>
+                <input type="text" name="ds" value={form.ds} onChange={handleChange} placeholder="Decreto Supremo" />
+              </div>
+              <div className="form-group">
+                <label>Doc. Transferencia</label>
+                <input type="text" name="docTransf" value={form.docTransf} onChange={handleChange} placeholder="Doc. Transferencia" />
+              </div>
+              <div className="form-group">
+                <label>Minuta</label>
+                <input type="text" name="minuta" value={form.minuta} onChange={handleChange} placeholder="Minuta de Compra/Venta" />
+              </div>
+              <div className="form-group">
+                <label>Doc. Compra Venta</label>
+                <input type="text" name="docCompVen" value={form.docCompVen} onChange={handleChange} placeholder="Doc. Compra/Venta" />
+              </div>
+              <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                <label>Acta Compra Venta</label>
+                <input type="text" name="actaCoVe" value={form.actaCoVe} onChange={handleChange} placeholder="Acta de Compra/Venta" />
+              </div>
+            </div>
+
+          </div>
+        )}
+
+        <div className="modal-actions" style={{ borderTop: '1px solid #f0f2f5', marginTop: '1rem', paddingTop: '0.75rem' }}>
+          <button className="btn btn-primary" onClick={handleSave} disabled={saving || loading}>
+            {saving ? 'Guardando...' : 'Guardar Ficha'}
+          </button>
+          <button className="btn btn-secondary" onClick={onClose} disabled={saving}>Cancelar</button>
         </div>
       </div>
     </div>

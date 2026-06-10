@@ -75,6 +75,7 @@ class in_empleado(models.Model):
     cargo = models.CharField(max_length=100, blank=True, null=True, verbose_name='Cargo')
     foto = models.URLField(max_length=500, blank=True, null=True, verbose_name='URL de Foto')
     fecha_nacimiento = models.DateField(blank=True, null=True, verbose_name='Fecha de Nacimiento')
+    procedencia = models.CharField(max_length=5, blank=True, null=True, verbose_name='Procedencia')
 
     id_empleado_jefe = models.ForeignKey(
         'self',

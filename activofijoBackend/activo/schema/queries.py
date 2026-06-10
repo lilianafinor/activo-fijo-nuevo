@@ -12,7 +12,10 @@ from ..models import (
     in_atributo, in_det_atrib, in_atrib_activo,
     in_parte_grupo, in_mod_grp, in_det_grp, in_det_parte,
     in_transferido, in_det_tranf,
-    in_rol, in_permiso, in_rol_permiso, in_empleado, in_usuario, in_rol_permiso_usuario
+    in_rol, in_permiso, in_rol_permiso, in_empleado, in_usuario, in_rol_permiso_usuario,
+    in_motivo, in_baja_act, in_vehic, in_tasa_rev,
+    in_log_activo, in_log_ingreso, in_log_asignado, in_log_det_asig,
+    in_log_oficina, in_log_det_reval, in_log_baja_act
 )
 from .types import (
     InEstadoType, InCondicionType, InUnidadType, InTipoAsigType, InTipomatType, InTipoType,
@@ -22,7 +25,10 @@ from .types import (
     InAsignadoType, InDetAsigType, InEncargadoType, InDetRevalType, InDepAcumuladaType, InAtributoType,
     InDetAtribType, InAtribActivoType, InParteGrupoType, InModGrpType, InDetGrpType, InDetParteType,
     InTransferidoType, InDetTranfType,
-    InRolType, InPermisoType, InRolPermisoType, InEmpleadoType, InUsuarioType, InRolPermisoUsuarioType
+    InRolType, InPermisoType, InRolPermisoType, InEmpleadoType, InUsuarioType, InRolPermisoUsuarioType,
+    InMotivoType, InBajaActType, InVehicType, InTasaRevType,
+    InLogActivoType, InLogIngresoType, InLogAsignadoType, InLogDetAsigType,
+    InLogOficinaType, InLogDetRevalType, InLogBajaActType
 )
 
 # ═══════════════════════════════════════════════════════════════
@@ -108,7 +114,7 @@ class Query(graphene.ObjectType):
     ingresos_por_prov  = graphene.List(InIngresoType, cod_prov=graphene.Int(required=True))
 
     # ── Activos ─────────────────────────────────────────────────
-    todos_activos          = graphene.List(InActivoType, solo_activos=graphene.Boolean())
+    todos_activos          = graphene.List(InActivoType, solo_activos=graphene.Boolean(), solo_aprobados=graphene.Boolean())
     activo                 = graphene.Field(InActivoType, nro_activo=graphene.Int(required=True))
     activo_por_codigo      = graphene.Field(InActivoType, cod_activo=graphene.String(required=True))
     activos_por_grupo      = graphene.List(InActivoType, cod_grupo=graphene.Int(required=True), solo_activos=graphene.Boolean())
@@ -164,6 +170,22 @@ class Query(graphene.ObjectType):
 
     todos_usuarios      = graphene.List(InUsuarioType)
     usuario             = graphene.Field(InUsuarioType, id_usuario=graphene.Int(required=True))
+
+    # ── Nuevos modelos y UFV ────────────────────────────────────
+    todos_motivos           = graphene.List(InMotivoType)
+    todas_bajas_detalladas  = graphene.List(InBajaActType)
+    todos_vehiculos         = graphene.List(InVehicType)
+    vehiculo_por_activo     = graphene.Field(InVehicType, nro_activo=graphene.Int(required=True))
+    todas_tasas_rev         = graphene.List(InTasaRevType)
+
+    # ── Logs de auditoría ───────────────────────────────────────
+    todos_logs_activos      = graphene.List(InLogActivoType)
+    todos_logs_ingresos     = graphene.List(InLogIngresoType)
+    todos_logs_asignados    = graphene.List(InLogAsignadoType)
+    todos_logs_det_asig     = graphene.List(InLogDetAsigType)
+    todos_logs_oficina      = graphene.List(InLogOficinaType)
+    todos_logs_det_reval    = graphene.List(InLogDetRevalType)
+    todos_logs_baja_act     = graphene.List(InLogBajaActType)
 
     # ── Resolvers — Catálogos simples ───────────────────────────
     def resolve_todos_estados(root, info):
@@ -331,13 +353,15 @@ class Query(graphene.ObjectType):
         return in_ingreso.objects.filter(cod_prov_id=cod_prov)
 
     # ── Resolvers — Activos ─────────────────────────────────────
-    def resolve_todos_activos(root, info, solo_activos=True):
+    def resolve_todos_activos(root, info, solo_activos=True, solo_aprobados=None):
         qs = in_activo.objects.select_related(
             'cod_gest', 'cod_grupo', 'cod_unidad', 'cod_marca',
             'cod_modelo', 'cod_prove', 'cod_cond', 'cod_estado', 'nro_ingreso'
         )
         if solo_activos:
             qs = qs.exclude(a_b='B')
+        if solo_aprobados:
+            qs = qs.filter(estado_registro='APROBADO')
         return qs
     def resolve_activo(root, info, nro_activo):
         return in_activo.objects.get(pk=nro_activo)
@@ -475,6 +499,47 @@ class Query(graphene.ObjectType):
 
     def resolve_usuario(root, info, id_usuario):
         return in_usuario.objects.get(pk=id_usuario)
+
+    # ── Resolvers de nuevos modelos y UFV ────────────────────────
+    def resolve_todos_motivos(root, info):
+        return in_motivo.objects.all()
+
+    def resolve_todas_bajas_detalladas(root, info):
+        return in_baja_act.objects.select_related('nro_activo').all()
+
+    def resolve_todos_vehiculos(root, info):
+        return in_vehic.objects.select_related('nro_activo').all()
+
+    def resolve_vehiculo_por_activo(root, info, nro_activo):
+        try:
+            return in_vehic.objects.get(nro_activo_id=nro_activo)
+        except in_vehic.DoesNotExist:
+            return None
+
+    def resolve_todas_tasas_rev(root, info):
+        return in_tasa_rev.objects.all().order_by('-fecha')
+
+    # ── Resolvers de logs de auditoría ──────────────────────────
+    def resolve_todos_logs_activos(root, info):
+        return in_log_activo.objects.all().order_by('-id')
+
+    def resolve_todos_logs_ingresos(root, info):
+        return in_log_ingreso.objects.all().order_by('-id')
+
+    def resolve_todos_logs_asignados(root, info):
+        return in_log_asignado.objects.all().order_by('-id')
+
+    def resolve_todos_logs_det_asig(root, info):
+        return in_log_det_asig.objects.all().order_by('-id')
+
+    def resolve_todos_logs_oficina(root, info):
+        return in_log_oficina.objects.all().order_by('-id')
+
+    def resolve_todos_logs_det_reval(root, info):
+        return in_log_det_reval.objects.all().order_by('-id')
+
+    def resolve_todos_logs_baja_act(root, info):
+        return in_log_baja_act.objects.all().order_by('-id')
 
 
 

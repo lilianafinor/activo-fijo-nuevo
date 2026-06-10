@@ -1,19 +1,7 @@
 import React, { useState } from 'react';
-import { useQuery, useMutation, gql } from '@apollo/client';
-
-const GET_OFICINAS = gql`
-  query { todasOficinas { codOfic codDpto desDpto nivel aB codPadre { codOfic desDpto } } }
-`;
-const CREAR_OFIC = gql`
-  mutation CrearOficina($codDpto: String!, $desDpto: String!, $codGest: Int!, $codPadre: Int, $nivel: Int, $aB: String) {
-    crearOficina(codDpto: $codDpto, desDpto: $desDpto, codGest: $codGest, codPadre: $codPadre, nivel: $nivel, aB: $aB) {
-      oficina { codOfic desDpto }
-    }
-  }
-`;
-const ELIMINAR_OFIC = gql`
-  mutation($codOfic: Int!) { eliminarOficina(codOfic: $codOfic) { ok } }
-`;
+import { useQuery, useMutation } from '@apollo/client';
+import { GET_OFICINAS } from '../graphql/queries';
+import { CREAR_OFIC, ELIMINAR_OFIC } from '../graphql/mutations';
 
 const buildTree = (oficinas: any[]) => {
   const map: Record<number, any> = {};

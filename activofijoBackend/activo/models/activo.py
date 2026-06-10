@@ -62,6 +62,10 @@ class in_activo(models.Model):
     monto = models.DecimalField(max_digits=16, decimal_places=2, null=True, blank=True)
     fec_adqui = models.DateField(null=True, blank=True)
     nro_serie = models.CharField(max_length=36, null=True, blank=True)
+    organismo_financiador = models.IntegerField(null=True, blank=True)
+    cod_rube = models.CharField(max_length=20, null=True, blank=True)
+    nro_convenio = models.CharField(max_length=30, null=True, blank=True)
+    estado_registro = models.CharField(max_length=20, default='ELABORADO')
     a_b = models.CharField(max_length=1)
 
     class Meta:

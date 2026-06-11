@@ -45,6 +45,37 @@ export const CREAR_BAJA_ACT = gql`
   }
 `;
 
+export const CREAR_MOTIVO_BAJA = gql`
+  mutation CrearMotivoBaja($motivo: Int!, $descripcion: String!) {
+    crearMotivoBaja(motivo: $motivo, descripcion: $descripcion) {
+      motivoObj {
+        motivo
+        descripcion
+      }
+    }
+  }
+`;
+
+export const EDITAR_MOTIVO_BAJA = gql`
+  mutation EditarMotivoBaja($motivo: Int!, $descripcion: String!) {
+    editarMotivoBaja(motivo: $motivo, descripcion: $descripcion) {
+      motivoObj {
+        motivo
+        descripcion
+      }
+    }
+  }
+`;
+
+export const ELIMINAR_MOTIVO_BAJA = gql`
+  mutation EliminarMotivoBaja($motivo: Int!) {
+    eliminarMotivoBaja(motivo: $motivo) {
+      success
+    }
+  }
+`;
+
+
 // ==================== UFVS ====================
 export const GUARDAR_TASA_REV = gql`
   mutation GuardarTasaRev($nro: Int, $fecha: Date!, $ufv: Float!) {
@@ -349,3 +380,30 @@ export const REGISTRAR_EMPLEADO_USUARIO = gql`
     }
   }
 `;
+
+// ==================== 2FA / OTP ====================
+export const OBTENER_PRECONFIGURACION_2FA = gql`
+  mutation ObtenerPreconfiguracion2FA {
+    obtenerPreconfiguracion2fa {
+      secret
+      qrUri
+    }
+  }
+`;
+
+export const ACTIVAR_2FA = gql`
+  mutation Activar2FA($code: String!) {
+    activar2fa(code: $code) {
+      success
+    }
+  }
+`;
+
+export const DESACTIVAR_2FA = gql`
+  mutation Desactivar2FA {
+    desactivar2fa {
+      success
+    }
+  }
+`;
+

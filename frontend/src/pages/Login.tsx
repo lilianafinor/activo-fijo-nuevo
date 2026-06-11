@@ -85,7 +85,7 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
     // Verify mathematical captcha in frontend first
     if (parseInt(captchaInput) !== num1 + num2) {
-      triggerError('Captcha matemático incorrecto. Intenta de nuevo.');
+      triggerError('Captcha matemático incorrecto. Intente de nuevo.');
       generateCaptcha();
       return;
     }
@@ -202,107 +202,84 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
 
   return (
     <div className="login-page">
-      {/* Decorative blurred background circles */}
-      <div className="login-bg-sphere sphere-1"></div>
-      <div className="login-bg-sphere sphere-2"></div>
-      <div className="login-bg-sphere sphere-3"></div>
-
       <div className={`login-card ${shake ? 'shake-animation' : ''}`}>
         
+        {/* Centered Logo Banner matching UAGRM */}
+        <div className="login-logo-container">
+          <img
+            src="https://presencial.uagrm.edu.bo/pluginfile.php/1/core_admin/logo/0x200/1781140413/Presencial%20%283%29.png"
+            alt="UAGRM - Presencial"
+            className="login-logo-img"
+          />
+        </div>
+
+        {errorMsg && (
+          <div className="error-badge">
+            {errorMsg}
+          </div>
+        )}
+
         {stage === 'login' ? (
-          <>
-            <div className="login-header">
-              <span className="login-logo">🏛️</span>
-              <h1>Activos Fijos</h1>
-              <p>Inicia sesión para acceder al sistema administrativo</p>
+          <form onSubmit={handleLoginSubmit} className="login-form">
+            <div className="input-wrapper">
+              <input
+                type="email"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="Nombre de usuario"
+                className="login-input"
+                required
+              />
             </div>
 
-            {errorMsg && (
-              <div className="error-badge">
-                <span>⚠️</span> {errorMsg}
-              </div>
-            )}
+            <div className="input-wrapper">
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Contraseña"
+                className="login-input"
+                required
+              />
+            </div>
 
-            <form onSubmit={handleLoginSubmit} className="login-form">
-              <div className="input-wrapper">
-                <label className="input-label">Usuario (Correo Electrónico)</label>
-                <div className="input-field-container">
-                  <span className="input-icon">👤</span>
-                  <input
-                    type="email"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder="usuario@uagrm.edu.bo"
-                    className="login-input"
-                    required
-                  />
+            <div className="input-wrapper">
+              <label className="input-label" style={{ fontSize: '0.78rem', color: '#6c757d', marginBottom: '2px' }}>Verificación de seguridad</label>
+              <div className="captcha-container">
+                <div className="captcha-challenge">
+                  {num1} + {num2} = ?
                 </div>
+                <input
+                  type="text"
+                  value={captchaInput}
+                  onChange={(e) => setCaptchaInput(e.target.value)}
+                  placeholder="Resultado"
+                  className="captcha-input"
+                  maxLength={3}
+                  required
+                />
               </div>
+            </div>
 
-              <div className="input-wrapper">
-                <label className="input-label">Contraseña</label>
-                <div className="input-field-container">
-                  <span className="input-icon">🔒</span>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••••••"
-                    className="login-input"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="input-wrapper">
-                <label className="input-label">Verificación de Seguridad</label>
-                <div className="captcha-container">
-                  <div className="captcha-challenge">
-                    {num1} + {num2} = ?
-                  </div>
-                  <input
-                    type="text"
-                    value={captchaInput}
-                    onChange={(e) => setCaptchaInput(e.target.value)}
-                    placeholder="Suma"
-                    className="captcha-input"
-                    maxLength={3}
-                    required
-                  />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                className="login-btn"
-                disabled={authLoading}
-              >
-                {authLoading ? (
-                  <div className="spinner"></div>
-                ) : (
-                  <>
-                    <span>Ingresar</span>
-                    <span>➔</span>
-                  </>
-                )}
-              </button>
-            </form>
-          </>
+            <button
+              type="submit"
+              className="login-btn"
+              disabled={authLoading}
+              style={{ marginTop: '10px' }}
+            >
+              {authLoading ? (
+                <div className="spinner"></div>
+              ) : (
+                <span>Acceder</span>
+              )}
+            </button>
+          </form>
         ) : (
-          <>
-            <div className="login-header">
-              <span className="login-logo">🔑</span>
-              <h1>Verificación OTP</h1>
-              <p>Ingresa el código de 6 dígitos enviado o de tu app autenticadora</p>
-            </div>
-
-            {errorMsg && (
-              <div className="error-badge">
-                <span>⚠️</span> {errorMsg}
-              </div>
-            )}
-
-            <form onSubmit={handleOtpSubmit} className="login-form">
+          <form onSubmit={handleOtpSubmit} className="login-form">
+            <div className="input-wrapper" style={{ textAlign: 'center' }}>
+              <label className="input-label" style={{ display: 'block', marginBottom: '8px', color: '#495057' }}>
+                Ingrese el código de verificación de 2 pasos
+              </label>
               <div className="otp-container">
                 {otpCode.map((digit, i) => (
                   <input
@@ -321,39 +298,33 @@ const Login: React.FC<LoginProps> = ({ onLoginSuccess }) => {
                   />
                 ))}
               </div>
+            </div>
 
-              <button
-                type="submit"
-                className="login-btn"
-                disabled={otpLoading}
-                style={{
-                  background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 50%, #6d28d9 100%)',
-                  boxShadow: '0 4px 15px rgba(139, 92, 246, 0.3)'
-                }}
-              >
-                {otpLoading ? (
-                  <div className="spinner"></div>
-                ) : (
-                  <>
-                    <span>Verificar Código</span>
-                    <span>✓</span>
-                  </>
-                )}
-              </button>
+            <button
+              type="submit"
+              className="login-btn"
+              disabled={otpLoading}
+              style={{ marginTop: '10px' }}
+            >
+              {otpLoading ? (
+                <div className="spinner"></div>
+              ) : (
+                <span>Verificar y Acceder</span>
+              )}
+            </button>
 
-              <button
-                type="button"
-                className="back-link"
-                onClick={() => {
-                  setStage('login');
-                  setErrorMsg('');
-                  setOtpCode(Array(6).fill(''));
-                }}
-              >
-                ← Volver a ingresar datos
-              </button>
-            </form>
-          </>
+            <button
+              type="button"
+              className="back-link"
+              onClick={() => {
+                setStage('login');
+                setErrorMsg('');
+                setOtpCode(Array(6).fill(''));
+              }}
+            >
+              Volver al formulario
+            </button>
+          </form>
         )}
 
       </div>

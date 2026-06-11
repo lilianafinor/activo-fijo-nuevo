@@ -1224,6 +1224,44 @@ class CrearBajaAct(graphene.Mutation):
         return CrearBajaAct(baja=baja_obj)
 
 
+class CrearMotivoBaja(graphene.Mutation):
+    class Arguments:
+        motivo = graphene.Int(required=True)
+        descripcion = graphene.String(required=True)
+    
+    motivo_obj = graphene.Field(InMotivoType)
+    
+    def mutate(root, info, motivo, descripcion):
+        obj = in_motivo.objects.create(motivo=motivo, descripcion=descripcion)
+        return CrearMotivoBaja(motivo_obj=obj)
+
+
+class EditarMotivoBaja(graphene.Mutation):
+    class Arguments:
+        motivo = graphene.Int(required=True)
+        descripcion = graphene.String(required=True)
+    
+    motivo_obj = graphene.Field(InMotivoType)
+    
+    def mutate(root, info, motivo, descripcion):
+        obj = in_motivo.objects.get(pk=motivo)
+        obj.descripcion = descripcion
+        obj.save()
+        return EditarMotivoBaja(motivo_obj=obj)
+
+
+class EliminarMotivoBaja(graphene.Mutation):
+    class Arguments:
+        motivo = graphene.Int(required=True)
+    
+    success = graphene.Boolean()
+    
+    def mutate(root, info, motivo):
+        obj = in_motivo.objects.get(pk=motivo)
+        obj.delete()
+        return EliminarMotivoBaja(success=True)
+
+
 
 # ═══════════════════════════════════════════════════════════════
 # MUTATIONS — ASIGNACIÓN
@@ -1906,6 +1944,70 @@ class EditarDetTranf(graphene.Mutation):
 
 # ── Authentication and RBAC Mutations ───────────────────────────
 
+class ObtenerPreconfiguracion2FA(graphene.Mutation):
+    """Genera o recupera la clave secreta y la URL del código QR para configurar 2FA."""
+    secret = graphene.String()
+    qr_uri = graphene.String(name="qrUri")
+    
+    def mutate(self, info):
+        from .auth_helper import get_authenticated_user
+        user = get_authenticated_user(info)
+        if not user:
+            raise Exception("Usuario no autenticado")
+        
+        import pyotp
+        if not user.otp_secret:
+            user.otp_secret = pyotp.random_base32()
+            user.save()
+        
+        totp = pyotp.TOTP(user.otp_secret)
+        qr_uri = totp.provisioning_uri(name=user.correo, issuer_name="ActivoFijo")
+        
+        return ObtenerPreconfiguracion2FA(secret=user.otp_secret, qr_uri=qr_uri)
+
+
+class Activar2FA(graphene.Mutation):
+    """Verifica el código de prueba y activa formalmente el doble factor."""
+    class Arguments:
+        code = graphene.String(required=True)
+        
+    success = graphene.Boolean()
+    
+    def mutate(self, info, code):
+        from .auth_helper import get_authenticated_user
+        user = get_authenticated_user(info)
+        if not user:
+            raise Exception("Usuario no autenticado")
+        
+        if not user.otp_secret:
+            raise Exception("Debe solicitar preconfiguración de 2FA primero")
+        
+        import pyotp
+        totp = pyotp.TOTP(user.otp_secret)
+        if not totp.verify(code):
+            raise Exception("Código de verificación incorrecto")
+        
+        user.two_factor_enabled = True
+        user.save()
+        return Activar2FA(success=True)
+
+
+class Desactivar2FA(graphene.Mutation):
+    """Desactiva el doble factor de autenticación."""
+    success = graphene.Boolean()
+    
+    def mutate(self, info):
+        from .auth_helper import get_authenticated_user
+        user = get_authenticated_user(info)
+        if not user:
+            raise Exception("Usuario no autenticado")
+        
+        user.two_factor_enabled = False
+        user.otp_secret = None
+        user.save()
+        return Desactivar2FA(success=True)
+
+
 class TokenAuth(graphene.Mutation):
     class Arguments:
         username = graphene.String(required=True)
@@ -2377,6 +2479,9 @@ class Mutation(graphene.ObjectType):
     dar_de_baja_activo   = DarDeBajaActivo.Field()
     aprobar_activo       = AprobarActivo.Field()
     crear_baja_act       = CrearBajaAct.Field()
+    crear_motivo_baja    = CrearMotivoBaja.Field()
+    editar_motivo_baja   = EditarMotivoBaja.Field()
+    eliminar_motivo_baja = EliminarMotivoBaja.Field()
     guardar_vehiculo     = GuardarVehiculo.Field()
     guardar_tasa_rev     = GuardarTasaRev.Field()
 
@@ -2424,6 +2529,9 @@ class Mutation(graphene.ObjectType):
     # ── Authentication and RBAC ─────────────────────────────────
     token_auth                   = TokenAuth.Field()
     verify_otp                   = VerifyOtp.Field()
+    obtener_preconfiguracion_2fa = ObtenerPreconfiguracion2FA.Field()
+    activar_2fa                  = Activar2FA.Field()
+    desactivar_2fa               = Desactivar2FA.Field()
     registrar_empleado_usuario   = RegistrarEmpleadoUsuario.Field()
     crear_rol                    = CrearRol.Field()
     editar_rol                   = EditarRol.Field()

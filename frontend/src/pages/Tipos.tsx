@@ -1,6 +1,7 @@
 import PageLayout from '../components/ui/PageLayout';
 import React, { useState } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
+import { useAuth } from '../context/AuthContext';
 
 const GET_TIPOS = gql`
   query GetTipos {
@@ -48,6 +49,11 @@ const DAR_DE_BAJA_TIPO = gql`
 `;
 
 export default function Tipos() {
+  const { user } = useAuth();
+  const puedeCrear = user?.esAdmin || user?.permisos.includes('crear_tipo');
+  const puedeEditar = user?.esAdmin || user?.permisos.includes('editar_tipo');
+  const puedeEliminar = user?.esAdmin || user?.permisos.includes('eliminar_tipo');
+
   const [showModal, setShowModal] = useState(false);
   const [editando, setEditando] = useState<any>(null);
   const [form, setForm] = useState({ codTipo: '', desTipo: '' });
@@ -121,10 +127,14 @@ export default function Tipos() {
   return (
     <PageLayout
       title="Tipos de Activo"
-      actions={[
-        { label: 'Nuevo', icon: '+', variant: 'primary' as const, onClick: abrirNuevo },
-        { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
-      ]}
+      actions={
+        puedeCrear ? [
+          { label: 'Nuevo', icon: '+', variant: 'primary' as const, onClick: abrirNuevo },
+          { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
+        ] : [
+          { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
+        ]
+      }
     >
 
       <div className="table-container">
@@ -158,10 +168,12 @@ export default function Tipos() {
                 </td>
                 <td>
                   <div className="btn-group">
-                    <button className="btn btn-warning btn-sm" onClick={() => abrirEditar(t)}>
-                      Editar
-                    </button>
-                    {t.aB === 'A' && (
+                    {puedeEditar && (
+                      <button className="btn btn-warning btn-sm" onClick={() => abrirEditar(t)}>
+                        Editar
+                      </button>
+                    )}
+                    {puedeEliminar && t.aB === 'A' && (
                       <button className="btn btn-danger btn-sm" onClick={() => handleDarDeBaja(t.codTipo)}>
                         Dar de Baja
                       </button>

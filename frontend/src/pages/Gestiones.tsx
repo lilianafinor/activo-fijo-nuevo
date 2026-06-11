@@ -1,6 +1,7 @@
 import PageLayout from '../components/ui/PageLayout';
 import React, { useState } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
+import { useAuth } from '../context/AuthContext';
 
 const GET_GESTIONES = gql`
   query GetGestiones {
@@ -51,6 +52,11 @@ const DAR_DE_BAJA_GESTION = gql`
 `;
 
 export default function Gestiones() {
+  const { user } = useAuth();
+  const puedeCrear = user?.esAdmin || user?.permisos.includes('crear_gestion');
+  const puedeEditar = user?.esAdmin || user?.permisos.includes('editar_gestion');
+  const puedeEliminar = user?.esAdmin || user?.permisos.includes('eliminar_gestion');
+
   const [showModal, setShowModal] = useState(false);
   const [editando, setEditando] = useState<any>(null);
   const [form, setForm] = useState({ gestIni: '', gestFin: '' });
@@ -127,10 +133,14 @@ export default function Gestiones() {
   return (
     <PageLayout
       title="Gestiones"
-      actions={[
-        { label: 'Nuevo', icon: '+', variant: 'primary' as const, onClick: abrirNuevo },
-        { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
-      ]}
+      actions={
+        puedeCrear ? [
+          { label: 'Nuevo', icon: '+', variant: 'primary' as const, onClick: abrirNuevo },
+          { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
+        ] : [
+          { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
+        ]
+      }
     >
 
       <div className="table-container">
@@ -168,12 +178,16 @@ export default function Gestiones() {
                   <div className="btn-group">
                     {g.aB === 'A' && (
                       <>
-                        <button className="btn btn-warning btn-sm" onClick={() => abrirEditar(g)}>
-                          Editar
-                        </button>
-                        <button className="btn btn-danger btn-sm" onClick={() => handleDarDeBaja(g.codGest)}>
-                          Dar de Baja
-                        </button>
+                        {puedeEditar && (
+                          <button className="btn btn-warning btn-sm" onClick={() => abrirEditar(g)}>
+                            Editar
+                          </button>
+                        )}
+                        {puedeEliminar && (
+                          <button className="btn btn-danger btn-sm" onClick={() => handleDarDeBaja(g.codGest)}>
+                            Dar de Baja
+                          </button>
+                        )}
                       </>
                     )}
                   </div>

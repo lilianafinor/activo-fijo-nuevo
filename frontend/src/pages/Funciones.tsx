@@ -1,6 +1,7 @@
 import PageLayout from '../components/ui/PageLayout';
 import React, { useState } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
+import { useAuth } from '../context/AuthContext';
 
 const GET_FUNCIONES_ADM = gql`
   query GetFuncionesAdm {
@@ -37,6 +38,10 @@ const EDITAR_FUNCION_ADM = gql`
 `;
 
 export default function Funciones() {
+  const { user } = useAuth();
+  const puedeCrear = user?.esAdmin || user?.permisos.includes('crear_funcion');
+  const puedeEditar = user?.esAdmin || user?.permisos.includes('editar_funcion');
+
   const [showModal, setShowModal] = useState(false);
   const [editando, setEditando] = useState<any>(null);
   const [form, setForm] = useState({ codFunc: '', des: '', estprog: '' });
@@ -100,10 +105,14 @@ export default function Funciones() {
   return (
     <PageLayout
       title="Funciones Administrativas"
-      actions={[
-        { label: 'Nuevo', icon: '+', variant: 'primary' as const, onClick: abrirNuevo },
-        { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
-      ]}
+      actions={
+        puedeCrear ? [
+          { label: 'Nuevo', icon: '+', variant: 'primary' as const, onClick: abrirNuevo },
+          { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
+        ] : [
+          { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
+        ]
+      }
     >
 
       <div className="table-container">
@@ -133,9 +142,11 @@ export default function Funciones() {
                 <td>{f.estprog ? <span className="badge badge-info">{f.estprog}</span> : '-'}</td>
                 <td>
                   <div className="btn-group">
-                    <button className="btn btn-warning btn-sm" onClick={() => abrirEditar(f)}>
-                      Editar
-                    </button>
+                    {puedeEditar && (
+                      <button className="btn btn-warning btn-sm" onClick={() => abrirEditar(f)}>
+                        Editar
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>

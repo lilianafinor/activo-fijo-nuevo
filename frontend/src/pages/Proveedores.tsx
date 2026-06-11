@@ -1,6 +1,7 @@
 import PageLayout from '../components/ui/PageLayout';
 import React, { useState } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
+import { useAuth } from '../context/AuthContext';
 
 const GET_PROVEDORES = gql`
   query GetProvedores {
@@ -71,6 +72,11 @@ const VACIO_PROV = { nombre: '', direccion: '', telefono: '', ruc: '', ciudad: '
 const VACIO_CONT = { nombre: '', tipoDocid: 'C', doctoIdn: '', doctoIdl: '', telefono: '' };
 
 export default function Proveedores() {
+  const { user } = useAuth();
+  const puedeCrear = user?.esAdmin || user?.permisos.includes('crear_proveedor');
+  const puedeEditar = user?.esAdmin || user?.permisos.includes('editar_proveedor');
+  const puedeEliminar = user?.esAdmin || user?.permisos.includes('eliminar_proveedor');
+
   const [showProvModal, setShowProvModal] = useState(false);
   const [showContModal, setShowContModal] = useState(false);
   
@@ -190,10 +196,14 @@ export default function Proveedores() {
   return (
     <PageLayout
       title="Proveedores y Contactos"
-      actions={[
-        { label: 'Nuevo', icon: '+', variant: 'primary' as const, onClick: abrirNuevoProv },
-        { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
-      ]}
+      actions={
+        puedeCrear ? [
+          { label: 'Nuevo', icon: '+', variant: 'primary' as const, onClick: abrirNuevoProv },
+          { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
+        ] : [
+          { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
+        ]
+      }
     >
 
       <div className="table-container">
@@ -240,23 +250,25 @@ export default function Proveedores() {
                     </td>
                     <td onClick={e => e.stopPropagation()}>
                       <div className="btn-group">
-                        <button className="btn btn-warning btn-sm" onClick={(e) => abrirEditarProv(p, e)}>Editar</button>
-                        <button 
-                          className="btn btn-danger btn-sm" 
-                          onClick={async (e) => { 
-                            e.stopPropagation();
-                            if (window.confirm('¿Está seguro de eliminar este proveedor? Tenga en cuenta que no debe tener contactos asociados.')) { 
-                              try {
-                                await eliminarProv({ variables: { codProv: p.codProv } }); 
-                                refetch(); 
-                              } catch (err: any) {
-                                alert('Error al eliminar: ' + err.message);
-                              }
-                            } 
-                          }}
-                        >
-                          Eliminar
-                        </button>
+                        {puedeEditar && <button className="btn btn-warning btn-sm" onClick={(e) => abrirEditarProv(p, e)}>Editar</button>}
+                        {puedeEliminar && (
+                          <button 
+                            className="btn btn-danger btn-sm" 
+                            onClick={async (e) => { 
+                              e.stopPropagation();
+                              if (window.confirm('¿Está seguro de eliminar este proveedor? Tenga en cuenta que no debe tener contactos asociados.')) { 
+                                try {
+                                  await eliminarProv({ variables: { codProv: p.codProv } }); 
+                                  refetch(); 
+                                } catch (err: any) {
+                                  alert('Error al eliminar: ' + err.message);
+                                }
+                              } 
+                            }}
+                          >
+                            Eliminar
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -269,12 +281,14 @@ export default function Proveedores() {
                           <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#1e3a8a' }}>
                             👤 Personas de Contacto de: {p.nombre}
                           </h4>
-                          <button 
-                            className="btn btn-primary btn-sm" 
-                            onClick={() => abrirNuevoCont(p.codProv)}
-                          >
-                            + Agregar Contacto
-                          </button>
+                          {puedeCrear && (
+                            <button 
+                              className="btn btn-primary btn-sm" 
+                              onClick={() => abrirNuevoCont(p.codProv)}
+                            >
+                              + Agregar Contacto
+                            </button>
+                          )}
                         </div>
 
                         {contactCount === 0 ? (
@@ -304,13 +318,15 @@ export default function Proveedores() {
                                   <td style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}><span className="badge badge-info">{c.doctoIdl}</span></td>
                                   <td style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>{c.telefono}</td>
                                   <td style={{ padding: '0.5rem 1rem', fontSize: '0.85rem', textAlign: 'right' }}>
-                                    <button 
-                                      className="btn btn-warning btn-sm" 
-                                      style={{ padding: '2px 8px', fontSize: '0.75rem' }} 
-                                      onClick={() => abrirEditarCont(c)}
-                                    >
-                                      Editar
-                                    </button>
+                                    {puedeEditar && (
+                                      <button 
+                                        className="btn btn-warning btn-sm" 
+                                        style={{ padding: '2px 8px', fontSize: '0.75rem' }} 
+                                        onClick={() => abrirEditarCont(c)}
+                                      >
+                                        Editar
+                                      </button>
+                                    )}
                                   </td>
                                 </tr>
                               ))}

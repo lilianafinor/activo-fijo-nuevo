@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, gql } from '@apollo/client';
+import { useAuth } from '../context/AuthContext';
 
 // ==================== QUERY DE REPORTES GLOBALES ====================
 const GET_REPORTES_DATA = gql`
@@ -121,7 +122,12 @@ const formatBs = (value: number) => {
 };
 
 export default function Reportes() {
+  const { user } = useAuth();
+  const puedeVer = user?.esAdmin || user?.permisos.includes('ver_reportes');
+  const puedeExportar = user?.esAdmin || user?.permisos.includes('exportar_reportes');
+
   const [selectedReport, setSelectedReport] = useState<'inventario' | 'depreciacion' | 'asignacion' | 'transferencia' | 'solicitud' | 'bajas'>('inventario');
+  const [maximizedChart, setMaximizedChart] = useState<string | null>(null);
 
   // Estados de Filtros
   // Reporte 1: Inventario General
@@ -267,6 +273,103 @@ export default function Reportes() {
     }
     return list;
   }, [data, filterBajaBusqueda, filterBajaFechaDesde, filterBajaFechaHasta]);
+
+  // ==================== AGREGACIÓN DE DATOS PARA GRÁFICOS ====================
+  // 1. Inventario por Grupo Contable (Valoración y Cantidad)
+  const inventarioChartData = useMemo(() => {
+    const map: Record<string, { label: string; valor: number; cantidad: number }> = {};
+    inventarioFiltrado.forEach((a: any) => {
+      const gName = a.codGrupo?.desGrupo || 'Sin Grupo';
+      if (!map[gName]) {
+        map[gName] = { label: gName, valor: 0, cantidad: 0 };
+      }
+      map[gName].valor += parseFloat(a.monto) || 0;
+      map[gName].cantidad += 1;
+    });
+    return Object.values(map).sort((x, y) => y.valor - x.valor);
+  }, [inventarioFiltrado]);
+
+  // 2. Depreciación: Costo vs Depreciación por Grupo
+  const depreciacionChartData = useMemo(() => {
+    const map: Record<string, { label: string; costo: number; depreciacion: number; actual: number }> = {};
+    depreciacionFiltrada.forEach((d: any) => {
+      const gName = d.nroActivo?.codGrupo?.desGrupo || 'Sin Grupo';
+      if (!map[gName]) {
+        map[gName] = { label: gName, costo: 0, depreciacion: 0, actual: 0 };
+      }
+      map[gName].costo += parseFloat(d.nroActivo?.monto) || 0;
+      map[gName].depreciacion += parseFloat(d.acumulada) || 0;
+      map[gName].actual += parseFloat(d.valorActual) || 0;
+    });
+    return Object.values(map).sort((x, y) => y.costo - x.costo);
+  }, [depreciacionFiltrada]);
+
+  // 3. Asignación: Top 5 Oficinas por Valor en Custodia
+  const asignacionChartData = useMemo(() => {
+    const map: Record<string, { label: string; valor: number; cantidad: number }> = {};
+    asignacionFiltrada.forEach((as: any) => {
+      const ofName = as.codOfic?.desDpto || `Ofic. #${as.codOfic?.codOfic || as.codAsig}`;
+      const subVal = as.inDetAsigSet?.reduce((acc: number, curr: any) => acc + ((parseFloat(curr.nroActivo?.monto) || 0) * (curr.cantidad || 1)), 0) || 0;
+      const subQty = as.inDetAsigSet?.reduce((acc: number, curr: any) => acc + (curr.cantidad || 1), 0) || 0;
+      
+      if (!map[ofName]) {
+        map[ofName] = { label: ofName, valor: 0, cantidad: 0 };
+      }
+      map[ofName].valor += subVal;
+      map[ofName].cantidad += subQty;
+    });
+    return Object.values(map)
+      .sort((x, y) => y.valor - x.valor)
+      .slice(0, 5); // Top 5
+  }, [asignacionFiltrada]);
+
+  // 4. Transferencias por Estado
+  const transferenciaChartData = useMemo(() => {
+    let P = 0, A = 0, C = 0, R = 0;
+    transferenciaFiltrada.forEach((t: any) => {
+      if (t.estado === 'P') P++;
+      else if (t.estado === 'A') A++;
+      else if (t.estado === 'C') C++;
+      else if (t.estado === 'R') R++;
+    });
+    return [
+      { label: 'Pendiente', count: P, color: '#f0a500' },
+      { label: 'Aprobada', count: A, color: '#2d6a4f' },
+      { label: 'Completada', count: C, color: '#1a3c6e' },
+      { label: 'Rechazada', count: R, color: '#dc3545' }
+    ].filter(x => x.count > 0);
+  }, [transferenciaFiltrada]);
+
+  // 5. Solicitudes por Estado
+  const solicitudChartData = useMemo(() => {
+    let A = 0, P = 0, R = 0, B = 0;
+    solicitudFiltrada.forEach((s: any) => {
+      if (s.aB === 'A') A++;
+      else if (s.aB === 'P') P++;
+      else if (s.aB === 'R') R++;
+      else if (s.aB === 'B') B++;
+    });
+    return [
+      { label: 'Pendiente', count: A, color: '#f0a500' },
+      { label: 'Aprobada', count: P, color: '#2d6a4f' },
+      { label: 'Rechazada', count: R, color: '#dc3545' },
+      { label: 'Anulada', count: B, color: '#6c757d' }
+    ].filter(x => x.count > 0);
+  }, [solicitudFiltrada]);
+
+  // 6. Bajas por Grupo Contable
+  const bajasChartData = useMemo(() => {
+    const map: Record<string, { label: string; valor: number; cantidad: number }> = {};
+    bajasFiltradas.forEach((a: any) => {
+      const gName = a.codGrupo?.desGrupo || 'Sin Grupo';
+      if (!map[gName]) {
+        map[gName] = { label: gName, valor: 0, cantidad: 0 };
+      }
+      map[gName].valor += parseFloat(a.monto) || 0;
+      map[gName].cantidad += 1;
+    });
+    return Object.values(map).sort((x, y) => y.valor - x.valor);
+  }, [bajasFiltradas]);
 
   // ==================== OPERACIONES DE EXPORTACIÓN ====================
   const exportarCSV = (tipo: string) => {
@@ -550,7 +653,7 @@ export default function Reportes() {
   const renderKPIs = () => {
     if (selectedReport === 'inventario') {
       const totalCount = inventarioFiltrado.length;
-      const totalAmount = inventarioFiltrado.reduce((acc: number, curr: any) => acc + (curr.monto || 0), 0);
+      const totalAmount = inventarioFiltrado.reduce((acc: number, curr: any) => acc + (parseFloat(curr.monto) || 0), 0);
       const avgAmount = totalCount > 0 ? totalAmount / totalCount : 0;
       return (
         <div className="kpi-grid">
@@ -572,9 +675,9 @@ export default function Reportes() {
 
     if (selectedReport === 'depreciacion') {
       const totalCount = depreciacionFiltrada.length;
-      const originalCost = depreciacionFiltrada.reduce((acc: number, curr: any) => acc + (curr.nroActivo?.monto || 0), 0);
-      const accumulatedDep = depreciacionFiltrada.reduce((acc: number, curr: any) => acc + (curr.acumulada || 0), 0);
-      const bookValue = depreciacionFiltrada.reduce((acc: number, curr: any) => acc + (curr.valorActual || 0), 0);
+      const originalCost = depreciacionFiltrada.reduce((acc: number, curr: any) => acc + (parseFloat(curr.nroActivo?.monto) || 0), 0);
+      const accumulatedDep = depreciacionFiltrada.reduce((acc: number, curr: any) => acc + (parseFloat(curr.acumulada) || 0), 0);
+      const bookValue = depreciacionFiltrada.reduce((acc: number, curr: any) => acc + (parseFloat(curr.valorActual) || 0), 0);
       return (
         <div className="kpi-grid">
           <div className="kpi-card blue">
@@ -604,7 +707,7 @@ export default function Reportes() {
         return acc + sub;
       }, 0);
       const totalValorCustodiado = asignacionFiltrada.reduce((acc: number, curr: any) => {
-        const subVal = curr.inDetAsigSet?.reduce((subAcc: number, c: any) => subAcc + ((c.nroActivo?.monto || 0) * (c.cantidad || 1)), 0) || 0;
+        const subVal = curr.inDetAsigSet?.reduce((subAcc: number, c: any) => subAcc + ((parseFloat(c.nroActivo?.monto) || 0) * (c.cantidad || 1)), 0) || 0;
         return acc + subVal;
       }, 0);
       return (
@@ -676,7 +779,7 @@ export default function Reportes() {
 
     if (selectedReport === 'bajas') {
       const total = bajasFiltradas.length;
-      const totalAmount = bajasFiltradas.reduce((acc: number, curr: any) => acc + (curr.monto || 0), 0);
+      const totalAmount = bajasFiltradas.reduce((acc: number, curr: any) => acc + (parseFloat(curr.monto) || 0), 0);
       return (
         <div className="kpi-grid">
           <div className="kpi-card red">
@@ -794,7 +897,7 @@ export default function Reportes() {
                 <div className="office-card" key={as.codAsig}>
                   <div className="office-card-header">
                     <div>
-                      <h3>🏢 {as.codOfic?.desDpto || 'Sin Oficina'}</h3>
+                      <h3>Oficina: {as.codOfic?.desDpto || 'Sin Oficina'}</h3>
                       <p>
                         <span>Código Oficina: <strong>#{as.codOfic?.codOfic}</strong></span>
                         <span style={{ marginLeft: '1.5rem' }}>Responsable Asignación: <strong>Resp #{as.codResp}</strong></span>
@@ -961,6 +1064,85 @@ export default function Reportes() {
     }
   };
 
+  const renderGrafico = () => {
+    switch (selectedReport) {
+      case 'inventario':
+        return inventarioChartData.length > 0 ? (
+          <div className="report-chart-card">
+            <div className="report-chart-header">
+              <span className="report-chart-title">Valoración de Bienes por Grupo Contable (Bs.)</span>
+              <button className="chart-btn-maximize no-print" onClick={() => setMaximizedChart('inventario')}>
+                Maximizar
+              </button>
+            </div>
+            <InventarioGrupoChart data={inventarioChartData} />
+          </div>
+        ) : null;
+      case 'depreciacion':
+        return depreciacionChartData.length > 0 ? (
+          <div className="report-chart-card">
+            <div className="report-chart-header">
+              <span className="report-chart-title">Costo de Adquisición vs. Depreciación Acumulada</span>
+              <button className="chart-btn-maximize no-print" onClick={() => setMaximizedChart('depreciacion')}>
+                Maximizar
+              </button>
+            </div>
+            <DepreciacionGrupoChart data={depreciacionChartData} />
+          </div>
+        ) : null;
+      case 'asignacion':
+        return asignacionChartData.length > 0 ? (
+          <div className="report-chart-card">
+            <div className="report-chart-header">
+              <span className="report-chart-title">Top 5 Oficinas con Mayor Custodia (Bs.)</span>
+              <button className="chart-btn-maximize no-print" onClick={() => setMaximizedChart('asignacion')}>
+                Maximizar
+              </button>
+            </div>
+            <AsignacionOficinaChart data={asignacionChartData} />
+          </div>
+        ) : null;
+      case 'transferencia':
+        return transferenciaChartData.length > 0 ? (
+          <div className="report-chart-card">
+            <div className="report-chart-header">
+              <span className="report-chart-title">Transferencias por Estado</span>
+              <button className="chart-btn-maximize no-print" onClick={() => setMaximizedChart('transferencia')}>
+                Maximizar
+              </button>
+            </div>
+            <EstadoReporteChart data={transferenciaChartData} />
+          </div>
+        ) : null;
+      case 'solicitud':
+        return solicitudChartData.length > 0 ? (
+          <div className="report-chart-card">
+            <div className="report-chart-header">
+              <span className="report-chart-title">Solicitudes por Estado</span>
+              <button className="chart-btn-maximize no-print" onClick={() => setMaximizedChart('solicitud')}>
+                Maximizar
+              </button>
+            </div>
+            <EstadoReporteChart data={solicitudChartData} />
+          </div>
+        ) : null;
+      case 'bajas':
+        return bajasChartData.length > 0 ? (
+          <div className="report-chart-card">
+            <div className="report-chart-header">
+              <span className="report-chart-title">Costo Retirado por Grupo (Bs.)</span>
+              <button className="chart-btn-maximize no-print" onClick={() => setMaximizedChart('bajas')}>
+                Maximizar
+              </button>
+            </div>
+            <BajaGrupoChart data={bajasChartData} />
+          </div>
+        ) : null;
+      default:
+        return null;
+    }
+  };
+
   const getReportTitle = () => {
     switch (selectedReport) {
       case 'inventario': return 'Inventario General de Activos';
@@ -972,8 +1154,48 @@ export default function Reportes() {
     }
   };
 
+  const getChartTitle = (type: string) => {
+    switch (type) {
+      case 'inventario': return 'Valoración de Bienes por Grupo Contable (Bs.)';
+      case 'depreciacion': return 'Costo de Adquisición vs. Depreciación Acumulada';
+      case 'asignacion': return 'Top 5 Oficinas con Mayor Custodia (Bs.)';
+      case 'transferencia': return 'Distribución de Transferencias por Estado';
+      case 'solicitud': return 'Distribución de Solicitudes por Estado';
+      case 'bajas': return 'Costo Retirado por Grupo (Bs.)';
+      default: return 'Análisis Visual Especializado';
+    }
+  };
+
+  const renderMaximizedChart = (type: string) => {
+    switch (type) {
+      case 'inventario':
+        return <InventarioGrupoChart data={inventarioChartData} />;
+      case 'depreciacion':
+        return <DepreciacionGrupoChart data={depreciacionChartData} />;
+      case 'asignacion':
+        return <AsignacionOficinaChart data={asignacionChartData} />;
+      case 'transferencia':
+        return <EstadoReporteChart data={transferenciaChartData} />;
+      case 'solicitud':
+        return <EstadoReporteChart data={solicitudChartData} />;
+      case 'bajas':
+        return <BajaGrupoChart data={bajasChartData} />;
+      default:
+        return null;
+    }
+  };
+
   if (loading) return <div className="loading">Consultando registros y estructurando reportes...</div>;
   if (error) return <div className="error">Error de conexión con el servidor: {error.message}</div>;
+
+  if (!puedeVer) {
+    return (
+      <div className="error-container" style={{ padding: '2rem', background: 'white', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.06)', textAlign: 'center', margin: '2rem auto', maxWidth: '600px' }}>
+        <h2 style={{ color: '#dc3545', marginBottom: '1rem' }}>Acceso Restringido</h2>
+        <p style={{ color: '#666' }}>No tiene los permisos necesarios para ver el módulo de Reportes.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="reportes-page-wrapper">
@@ -1082,6 +1304,160 @@ export default function Reportes() {
           border-radius: 8px;
           border: 1px solid #e9ecef;
           margin-bottom: 1.5rem;
+        }
+
+        .report-summary-layout {
+          display: grid;
+          grid-template-columns: 1.2fr 0.8fr;
+          gap: 1.5rem;
+          margin-bottom: 1.5rem;
+          align-items: stretch;
+        }
+
+        .report-summary-kpis-container {
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+        }
+
+        .report-summary-chart-container {
+          min-width: 0;
+        }
+
+        @media (max-width: 1024px) {
+          .report-summary-layout {
+            grid-template-columns: 1fr;
+          }
+        }
+
+        .report-chart-card {
+          background: #f8f9fa;
+          border: 1px solid #e9ecef;
+          border-radius: 8px;
+          padding: 1.25rem;
+          height: 100%;
+          display: flex;
+          flex-direction: column;
+          gap: 1rem;
+          box-sizing: border-box;
+        }
+
+        .report-chart-title {
+          font-size: 0.85rem;
+          font-weight: 700;
+          color: #1a3c6e;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+
+        .report-chart-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          border-bottom: 1px solid #e9ecef;
+          padding-bottom: 0.5rem;
+          margin-bottom: 0.5rem;
+        }
+
+        .chart-btn-maximize {
+          background: white;
+          border: 1.5px solid #1a3c6e;
+          color: #1a3c6e;
+          font-size: 0.72rem;
+          font-weight: 600;
+          padding: 0.2rem 0.5rem;
+          border-radius: 4px;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .chart-btn-maximize:hover {
+          background: #1a3c6e;
+          color: white;
+        }
+
+        .chart-modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.65);
+          backdrop-filter: blur(4px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1200;
+          padding: 1.5rem;
+          animation: chartFadeIn 0.2s ease-out;
+        }
+
+        .chart-modal-content {
+          background: white;
+          border-radius: 12px;
+          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+          width: 100%;
+          max-width: 800px;
+          display: flex;
+          flex-direction: column;
+          gap: 1.25rem;
+          padding: 1.5rem;
+          animation: chartSlideUp 0.25s ease-out;
+        }
+
+        .chart-modal-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          border-bottom: 1.5px solid #f0f2f5;
+          padding-bottom: 0.75rem;
+        }
+
+        .chart-modal-header h3 {
+          margin: 0;
+          font-size: 1rem;
+          color: #1a3c6e;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+
+        .chart-modal-close {
+          background: #f1f5f9;
+          border: none;
+          color: #475569;
+          font-size: 0.82rem;
+          font-weight: 600;
+          padding: 0.35rem 0.7rem;
+          border-radius: 6px;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+
+        .chart-modal-close:hover {
+          background: #e2e8f0;
+          color: #0f172a;
+        }
+
+        .chart-modal-body {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          width: 100%;
+          padding: 1rem 0;
+          background: #f8f9fa;
+          border-radius: 8px;
+          border: 1px dashed #e2e8f0;
+        }
+
+        @keyframes chartFadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+
+        @keyframes chartSlideUp {
+          from { transform: translateY(15px); opacity: 0; }
+          to { transform: translateY(0); opacity: 1; }
         }
 
         .filter-item {
@@ -1270,6 +1646,28 @@ export default function Reportes() {
             font-size: 10px !important;
           }
 
+          .report-summary-layout {
+            display: block !important;
+            margin-bottom: 1rem !important;
+          }
+
+          .report-summary-kpis-container, .report-summary-chart-container {
+            width: 100% !important;
+            display: block !important;
+          }
+
+          .report-summary-chart-container {
+            margin-top: 10px !important;
+          }
+
+          .report-chart-card {
+            border: 1px solid #ccc !important;
+            background: #fff !important;
+            padding: 10px !important;
+            margin-bottom: 0 !important;
+            box-shadow: none !important;
+          }
+
           .navbar, .reportes-sidebar, .report-filters-grid, .report-actions, .no-print {
             display: none !important;
           }
@@ -1415,25 +1813,25 @@ export default function Reportes() {
 
       {/* SIDEBAR DE OPCIONES (NO SE IMPRIME) */}
       <div className="reportes-sidebar no-print">
-        <h2>📊 Reportes y Consultas</h2>
+        <h2>Reportes y Consultas</h2>
         <ul>
           <li className={selectedReport === 'inventario' ? 'active' : ''} onClick={() => setSelectedReport('inventario')}>
-            📋 Inventario General
+            Inventario General
           </li>
           <li className={selectedReport === 'depreciacion' ? 'active' : ''} onClick={() => setSelectedReport('depreciacion')}>
-            📉 Estado de Depreciación
+            Estado de Depreciación
           </li>
           <li className={selectedReport === 'asignacion' ? 'active' : ''} onClick={() => setSelectedReport('asignacion')}>
-            📦 Asignación por Oficina
+            Asignación por Oficina
           </li>
           <li className={selectedReport === 'transferencia' ? 'active' : ''} onClick={() => setSelectedReport('transferencia')}>
-            🔄 Historial Transferencias
+            Historial Transferencias
           </li>
           <li className={selectedReport === 'solicitud' ? 'active' : ''} onClick={() => setSelectedReport('solicitud')}>
-            🛒 Solicitudes de Compra
+            Solicitudes de Compra
           </li>
           <li className={selectedReport === 'bajas' ? 'active' : ''} onClick={() => setSelectedReport('bajas')}>
-            🗑️ Bajas de Activos
+            Bajas de Activos
           </li>
         </ul>
       </div>
@@ -1459,14 +1857,16 @@ export default function Reportes() {
               <h1>{getReportTitle()}</h1>
               <p className="no-print">Consulte y filtre la información en tiempo real para generar reportes oficiales.</p>
             </div>
-            <div className="report-actions no-print">
-              <button className="btn btn-secondary" onClick={handlePrint}>
-                🖨️ Imprimir Reporte
-              </button>
-              <button className="btn btn-success" onClick={() => exportarCSV(selectedReport)}>
-                📥 Exportar CSV (Excel)
-              </button>
-            </div>
+            {puedeExportar && (
+              <div className="report-actions no-print">
+                <button className="btn btn-secondary" onClick={handlePrint}>
+                  Imprimir Reporte
+                </button>
+                <button className="btn btn-success" onClick={() => exportarCSV(selectedReport)}>
+                  Exportar CSV (Excel)
+                </button>
+              </div>
+            )}
           </div>
 
           {/* FILTROS (NO SE IMPRIMEN) */}
@@ -1474,8 +1874,17 @@ export default function Reportes() {
             {renderFiltros()}
           </div>
 
-          {/* INDICADORES CLAVE (KPIs) */}
-          {renderKPIs()}
+          {/* RESUMEN EJECUTIVO (KPIs Y GRÁFICOS JUNTOS) */}
+          <div className="report-summary-layout">
+            <div className="report-summary-kpis-container">
+              {renderKPIs()}
+            </div>
+            {renderGrafico() && (
+              <div className="report-summary-chart-container">
+                {renderGrafico()}
+              </div>
+            )}
+          </div>
 
           {/* TABLA DE CONTENIDO (SE IMPRIME ADAPTADA) */}
           <div className="table-container" style={{ boxShadow: 'none', borderRadius: 0 }}>
@@ -1499,6 +1908,424 @@ export default function Reportes() {
           </div>
         </div>
       </div>
+
+      {/* MODAL PARA VER EL GRÁFICO AMPLIADO */}
+      {maximizedChart && (
+        <div className="chart-modal-overlay" onClick={() => setMaximizedChart(null)}>
+          <div className="chart-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="chart-modal-header">
+              <h3>{getChartTitle(maximizedChart)}</h3>
+              <button className="chart-modal-close" onClick={() => setMaximizedChart(null)}>
+                Cerrar ×
+              </button>
+            </div>
+            <div className="chart-modal-body">
+              {renderMaximizedChart(maximizedChart)}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ==================== COMPONENTES GRÁFICOS ESPECIALIZADOS SVG NATIVOS ====================
+function InventarioGrupoChart({ data }: { data: any[] }) {
+  const maxVal = Math.max(...data.map(d => d.valor), 100);
+  
+  const formatBs = (v: number) => {
+    return `${v.toLocaleString('es-BO', { maximumFractionDigits: 0 })} Bs.`;
+  };
+
+  const svgWidth = 550;
+  const rowHeight = 35;
+  const svgHeight = data.length * rowHeight + 20;
+  const labelWidth = 150;
+  const barMaxWidth = 290;
+  const valueOffset = 10;
+
+  return (
+    <div style={{ width: '100%', overflowX: 'auto' }}>
+      <svg width="100%" height={svgHeight} viewBox={`0 0 ${svgWidth} ${svgHeight}`} style={{ overflow: 'visible' }}>
+        {data.map((d, i) => {
+          const barWidth = (d.valor / maxVal) * barMaxWidth;
+          const y = i * rowHeight + 10;
+          return (
+            <g key={i}>
+              <text
+                x={labelWidth - 10}
+                y={y + 14}
+                textAnchor="end"
+                fontSize="10.5px"
+                fontWeight="bold"
+                fill="#4a5568"
+              >
+                {d.label.length > 20 ? `${d.label.slice(0, 18)}...` : d.label}
+              </text>
+              <rect
+                x={labelWidth}
+                y={y + 4}
+                width={barMaxWidth}
+                height={12}
+                fill="#e2e8f0"
+                rx="2"
+              />
+              <rect
+                x={labelWidth}
+                y={y + 4}
+                width={Math.max(barWidth, 2)}
+                height={12}
+                fill="#1a3c6e"
+                rx="2"
+                style={{ transition: 'width 0.5s ease' }}
+              />
+              <text
+                x={labelWidth + Math.max(barWidth, 2) + valueOffset}
+                y={y + 14}
+                fontSize="10.5px"
+                fontWeight="bold"
+                fill="#2d3748"
+              >
+                {formatBs(d.valor)} ({d.cantidad} ud.)
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+function DepreciacionGrupoChart({ data }: { data: any[] }) {
+  const chartData = data.slice(0, 5); // top 5
+  const maxVal = Math.max(...chartData.map(d => Math.max(d.costo, d.depreciacion)), 100);
+
+  const formatBs = (v: number) => {
+    if (v >= 1000000) return `${(v / 1000000).toFixed(1)}M Bs.`;
+    if (v >= 1000) return `${(v / 1000).toFixed(0)}k Bs.`;
+    return `${v.toFixed(0)} Bs.`;
+  };
+
+  const svgWidth = 500;
+  const svgHeight = 160;
+  const chartHeight = 110;
+  const paddingLeft = 60;
+  const paddingRight = 15;
+  const paddingTop = 20;
+  
+  const groupWidth = 65;
+  const gap = 18;
+  const barWidth = 20;
+
+  return (
+    <div style={{ width: '100%', overflowX: 'auto' }}>
+      <svg width="100%" height={svgHeight} viewBox={`0 0 ${svgWidth} ${svgHeight}`} style={{ overflow: 'visible' }}>
+        {[0, 0.25, 0.5, 0.75, 1].map((ratio, index) => {
+          const y = paddingTop + chartHeight - ratio * chartHeight;
+          const labelVal = ratio * maxVal;
+          return (
+            <g key={index}>
+              <line
+                x1={paddingLeft}
+                y1={y}
+                x2={svgWidth - paddingRight}
+                y2={y}
+                stroke="#e2e8f0"
+                strokeWidth="1"
+                strokeDasharray="3,3"
+              />
+              <text
+                x={paddingLeft - 8}
+                y={y + 3}
+                textAnchor="end"
+                fontSize="9.5px"
+                fontWeight="bold"
+                fill="#718096"
+              >
+                {ratio === 0 ? '0' : formatBs(labelVal)}
+              </text>
+            </g>
+          );
+        })}
+
+        <g transform={`translate(${svgWidth - 200}, 2)`} fontSize="9.5px" fontWeight="bold">
+          <rect width="8" height="8" fill="#1a3c6e" />
+          <text x="12" y="7">Costo Adq.</text>
+          <rect x="80" width="8" height="8" fill="#ea580c" />
+          <text x="92" y="7">Dep. Acum.</text>
+        </g>
+
+        {chartData.map((c, i) => {
+          const x = paddingLeft + gap + i * (groupWidth + gap);
+          const costoHeight = (c.costo / maxVal) * chartHeight;
+          const depHeight = (c.depreciacion / maxVal) * chartHeight;
+          const costoY = paddingTop + chartHeight - costoHeight;
+          const depY = paddingTop + chartHeight - depHeight;
+
+          return (
+            <g key={i}>
+              <rect
+                x={x}
+                y={costoY}
+                width={barWidth}
+                height={Math.max(costoHeight, 2)}
+                fill="#1a3c6e"
+                rx="1"
+              />
+              <rect
+                x={x + barWidth + 2}
+                y={depY}
+                width={barWidth}
+                height={Math.max(depHeight, 2)}
+                fill="#ea580c"
+                rx="1"
+              />
+              <text
+                x={x + barWidth}
+                y={paddingTop + chartHeight + 12}
+                textAnchor="middle"
+                fontSize="9.5px"
+                fontWeight="bold"
+                fill="#4a5568"
+              >
+                {c.label.length > 12 ? `${c.label.slice(0, 10)}...` : c.label}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+function AsignacionOficinaChart({ data }: { data: any[] }) {
+  const maxVal = Math.max(...data.map(d => d.valor), 100);
+  
+  const formatBs = (v: number) => {
+    return `${v.toLocaleString('es-BO', { maximumFractionDigits: 0 })} Bs.`;
+  };
+
+  const svgWidth = 550;
+  const rowHeight = 35;
+  const svgHeight = data.length * rowHeight + 20;
+  const labelWidth = 150;
+  const barMaxWidth = 290;
+  const valueOffset = 10;
+
+  return (
+    <div style={{ width: '100%', overflowX: 'auto' }}>
+      <svg width="100%" height={svgHeight} viewBox={`0 0 ${svgWidth} ${svgHeight}`} style={{ overflow: 'visible' }}>
+        {data.map((d, i) => {
+          const barWidth = (d.valor / maxVal) * barMaxWidth;
+          const y = i * rowHeight + 10;
+          return (
+            <g key={i}>
+              <text
+                x={labelWidth - 10}
+                y={y + 14}
+                textAnchor="end"
+                fontSize="10.5px"
+                fontWeight="bold"
+                fill="#4a5568"
+              >
+                {d.label.length > 20 ? `${d.label.slice(0, 18)}...` : d.label}
+              </text>
+              <rect
+                x={labelWidth}
+                y={y + 4}
+                width={barMaxWidth}
+                height={12}
+                fill="#e2e8f0"
+                rx="2"
+              />
+              <rect
+                x={labelWidth}
+                y={y + 4}
+                width={Math.max(barWidth, 2)}
+                height={12}
+                fill="#6a1b9a"
+                rx="2"
+                style={{ transition: 'width 0.5s ease' }}
+              />
+              <text
+                x={labelWidth + Math.max(barWidth, 2) + valueOffset}
+                y={y + 14}
+                fontSize="10.5px"
+                fontWeight="bold"
+                fill="#2d3748"
+              >
+                {formatBs(d.valor)} ({d.cantidad} ud.)
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+function EstadoReporteChart({ data }: { data: any[] }) {
+  const total = data.reduce((acc, curr) => acc + curr.count, 0);
+  if (total === 0) return null;
+
+  const radius = 42;
+  const strokeWidth = 12;
+  const circumference = 2 * Math.PI * radius;
+  let accumulatedPercent = 0;
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '2rem', justifyContent: 'center', flexWrap: 'wrap', width: '100%' }}>
+      <div style={{ position: 'relative', width: '130px', height: '130px' }}>
+        <svg width="100%" height="100%" viewBox="0 0 100 100" style={{ transform: 'rotate(-90deg)' }}>
+          <circle
+            cx="50"
+            cy="50"
+            r={radius}
+            fill="transparent"
+            stroke="#f1f5f9"
+            strokeWidth={strokeWidth}
+          />
+          {data.map((d, i) => {
+            const pct = (d.count / total) * 100;
+            const length = (pct / 100) * circumference;
+            const offset = -accumulatedPercent * circumference;
+            accumulatedPercent += pct / 100;
+            
+            return (
+              <circle
+                key={i}
+                cx="50"
+                cy="50"
+                r={radius}
+                fill="transparent"
+                stroke={d.color}
+                strokeWidth={strokeWidth}
+                strokeDasharray={`${length} ${circumference}`}
+                strokeDashoffset={offset}
+                style={{ transition: 'stroke-dasharray 0.5s ease' }}
+              />
+            );
+          })}
+        </svg>
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          pointerEvents: 'none'
+        }}>
+          <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#718096', textTransform: 'uppercase', letterSpacing: '0.3px' }}>Total</span>
+          <span style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#1a3c6e' }}>{total}</span>
+        </div>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '0.85rem', minWidth: '150px' }}>
+        {data.map((d, i) => {
+          const pct = ((d.count / total) * 100).toFixed(1);
+          return (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <div style={{ width: '12px', height: '12px', background: d.color }}></div>
+              <span style={{ fontWeight: 'bold', color: '#2d3748' }}>{d.label}:</span>
+              <span style={{ marginLeft: 'auto', fontFamily: 'monospace' }}>{d.count} ({pct}%)</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function BajaGrupoChart({ data }: { data: any[] }) {
+  const chartData = data.slice(0, 5); // top 5
+  const maxVal = Math.max(...chartData.map(d => d.valor), 100);
+
+  const formatBs = (v: number) => {
+    if (v >= 1000000) return `${(v / 1000000).toFixed(1)}M Bs.`;
+    if (v >= 1000) return `${(v / 1000).toFixed(0)}k Bs.`;
+    return `${v.toFixed(0)} Bs.`;
+  };
+
+  const svgWidth = 500;
+  const svgHeight = 160;
+  const chartHeight = 110;
+  const paddingLeft = 60;
+  const paddingRight = 15;
+  const paddingTop = 20;
+  
+  const barWidth = 30;
+  const gap = 45;
+
+  return (
+    <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', overflowX: 'auto' }}>
+      <svg width="100%" height={svgHeight} viewBox={`0 0 ${svgWidth} ${svgHeight}`} style={{ overflow: 'visible' }}>
+        {[0, 0.25, 0.5, 0.75, 1].map((ratio, index) => {
+          const y = paddingTop + chartHeight - ratio * chartHeight;
+          const labelVal = ratio * maxVal;
+          return (
+            <g key={index}>
+              <line
+                x1={paddingLeft}
+                y1={y}
+                x2={svgWidth - paddingRight}
+                y2={y}
+                stroke="#e2e8f0"
+                strokeWidth="1"
+                strokeDasharray="3,3"
+              />
+              <text
+                x={paddingLeft - 8}
+                y={y + 3}
+                textAnchor="end"
+                fontSize="9.5px"
+                fontWeight="bold"
+                fill="#718096"
+              >
+                {ratio === 0 ? '0' : formatBs(labelVal)}
+              </text>
+            </g>
+          );
+        })}
+
+        {chartData.map((c, i) => {
+          const barHeight = (c.valor / maxVal) * chartHeight;
+          const x = paddingLeft + gap + i * (barWidth + gap);
+          const y = paddingTop + chartHeight - barHeight;
+
+          return (
+            <g key={i}>
+              <rect
+                x={x}
+                y={y}
+                width={barWidth}
+                height={Math.max(barHeight, 2)}
+                fill="#cc0000"
+                rx="1"
+              />
+              <text
+                x={x + barWidth / 2}
+                y={y - 4}
+                textAnchor="middle"
+                fontSize="9px"
+                fontWeight="bold"
+                fill="#2d3748"
+              >
+                {c.valor >= 1000 ? `${(c.valor / 1000).toFixed(0)}k` : c.valor.toFixed(0)}
+              </text>
+              <text
+                x={x + barWidth / 2}
+                y={paddingTop + chartHeight + 12}
+                textAnchor="middle"
+                fontSize="9.5px"
+                fontWeight="bold"
+                fill="#4a5568"
+              >
+                {c.label.length > 12 ? `${c.label.slice(0, 10)}...` : c.label}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
     </div>
   );
 }

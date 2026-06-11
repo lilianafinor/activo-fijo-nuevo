@@ -1,6 +1,7 @@
 import PageLayout from '../components/ui/PageLayout';
 import React, { useState } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
+import { useAuth } from '../context/AuthContext';
 
 // ==================== QUERIES & MUTATIONS ====================
 const GET_GRUPOS_Y_ATRIBUTOS = gql`
@@ -129,6 +130,11 @@ function getGroupUnifiedCode(grupo: any, allGroups: any[]): string {
 }
 
 export default function Atributos() {
+  const { user } = useAuth();
+  const puedeCrear = user?.esAdmin || user?.permisos.includes('crear_atributo');
+  const puedeEditar = user?.esAdmin || user?.permisos.includes('editar_atributo');
+  const puedeEliminar = user?.esAdmin || user?.permisos.includes('eliminar_atributo');
+
   const [selectedGrupoId, setSelectedGrupoId] = useState<string>('');
   const [selectedAtrib, setSelectedAtrib] = useState<any>(null);
 
@@ -261,7 +267,7 @@ export default function Atributos() {
     <PageLayout
       title="Configuración de Atributos Técnicos"
       actions={[
-        ...(selectedGrupoId ? [{
+        ...(puedeCrear && selectedGrupoId ? [{
           label: 'Nuevo Atributo',
           icon: '+',
           variant: 'primary' as const,
@@ -305,18 +311,20 @@ export default function Atributos() {
           <div className="table-container">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', padding: '0 0.5rem' }}>
               <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#1a3c6e', margin: 0 }}>
-                📋 Atributos del Grupo
+                Atributos del Grupo
               </h3>
-              <button
-                className="btn btn-primary btn-sm"
-                onClick={() => {
-                  setEditAtribObj(null);
-                  setAtribDes('');
-                  setShowAtribModal(true);
-                }}
-              >
-                + Nuevo Atributo
-              </button>
+              {puedeCrear && (
+                <button
+                  className="btn btn-primary btn-sm"
+                  onClick={() => {
+                    setEditAtribObj(null);
+                    setAtribDes('');
+                    setShowAtribModal(true);
+                  }}
+                >
+                  + Nuevo Atributo
+                </button>
+              )}
             </div>
 
             {loadingAtribs ? (
@@ -352,17 +360,19 @@ export default function Atributos() {
                         </td>
                         <td onClick={e => e.stopPropagation()}>
                           <div className="btn-group">
-                            <button
-                              className="btn btn-warning btn-sm"
-                              onClick={() => {
-                                setEditAtribObj(a);
-                                setAtribDes(a.des);
-                                setShowAtribModal(true);
-                              }}
-                            >
-                              Editar
-                            </button>
-                            {a.aB === 'A' && (
+                            {puedeEditar && (
+                              <button
+                                className="btn btn-warning btn-sm"
+                                onClick={() => {
+                                  setEditAtribObj(a);
+                                  setAtribDes(a.des);
+                                  setShowAtribModal(true);
+                                }}
+                              >
+                                Editar
+                              </button>
+                            )}
+                            {puedeEliminar && a.aB === 'A' && (
                               <button
                                 className="btn btn-danger btn-sm"
                                 onClick={() => handleBajaAtrib(a.codAtrib)}
@@ -385,7 +395,7 @@ export default function Atributos() {
             <div style={{ background: 'white', padding: '1.25rem', borderRadius: '8px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px rgba(0,0,0,0.02)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>
                 <h3 style={{ fontSize: '1rem', fontWeight: 700, color: '#2d6a4f', margin: 0 }}>
-                  ⚙️ Valores / Opciones para: <span style={{ color: '#1a3c6e' }}>{selectedAtrib.des}</span>
+                  Valores / Opciones para: <span style={{ color: '#1a3c6e' }}>{selectedAtrib.des}</span>
                 </h3>
                 <button
                   style={{ background: 'none', border: 'none', fontSize: '1.25rem', color: '#94a3b8', cursor: 'pointer' }}
@@ -395,19 +405,21 @@ export default function Atributos() {
                 </button>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.75rem' }}>
-                <button
-                  className="btn btn-success btn-sm"
-                  onClick={() => {
-                    setEditOptionObj(null);
-                    setOptionNro('');
-                    setOptionDes('');
-                    setShowOptionModal(true);
-                  }}
-                >
-                  + Nueva Opción
-                </button>
-              </div>
+              {puedeCrear && (
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.75rem' }}>
+                  <button
+                    className="btn btn-success btn-sm"
+                    onClick={() => {
+                      setEditOptionObj(null);
+                      setOptionNro('');
+                      setOptionDes('');
+                      setShowOptionModal(true);
+                    }}
+                  >
+                    + Nueva Opción
+                  </button>
+                </div>
+              )}
 
               {loadingOptions ? (
                 <div className="loading" style={{ padding: '1rem' }}>Cargando opciones...</div>
@@ -437,19 +449,21 @@ export default function Atributos() {
                           </td>
                           <td>
                             <div className="btn-group">
-                              <button
-                                className="btn btn-warning btn-sm"
-                                style={{ padding: '2px 6px', fontSize: '0.72rem' }}
-                                onClick={() => {
-                                  setEditOptionObj(o);
-                                  setOptionNro(o.nroAtrib);
-                                  setOptionDes(o.des);
-                                  setShowOptionModal(true);
-                                }}
-                              >
-                                Editar
-                              </button>
-                              {o.aB === 'A' && (
+                              {puedeEditar && (
+                                <button
+                                  className="btn btn-warning btn-sm"
+                                  style={{ padding: '2px 6px', fontSize: '0.72rem' }}
+                                  onClick={() => {
+                                    setEditOptionObj(o);
+                                    setOptionNro(o.nroAtrib);
+                                    setOptionDes(o.des);
+                                    setShowOptionModal(true);
+                                  }}
+                                >
+                                  Editar
+                                </button>
+                              )}
+                              {puedeEliminar && o.aB === 'A' && (
                                 <button
                                   className="btn btn-danger btn-sm"
                                   style={{ padding: '2px 6px', fontSize: '0.72rem' }}

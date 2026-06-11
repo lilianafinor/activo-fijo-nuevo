@@ -1,6 +1,7 @@
 import PageLayout from '../components/ui/PageLayout';
 import React, { useState } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
+import { useAuth } from '../context/AuthContext';
 
 const GET_PARTES = gql`
   query GetPartes {
@@ -48,6 +49,11 @@ const DAR_DE_BAJA_PARTE = gql`
 `;
 
 export default function Partes() {
+  const { user } = useAuth();
+  const puedeCrear = user?.esAdmin || user?.permisos.includes('crear_parte');
+  const puedeEditar = user?.esAdmin || user?.permisos.includes('editar_parte');
+  const puedeEliminar = user?.esAdmin || user?.permisos.includes('eliminar_parte');
+
   const [showModal, setShowModal] = useState(false);
   const [editando, setEditando] = useState<any>(null);
   const [form, setForm] = useState({ desParte: '' });
@@ -121,10 +127,14 @@ export default function Partes() {
   return (
     <PageLayout
       title="Partes y Componentes"
-      actions={[
-        { label: 'Nuevo', icon: '+', variant: 'primary' as const, onClick: abrirNuevo },
-        { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
-      ]}
+      actions={
+        puedeCrear ? [
+          { label: 'Nuevo', icon: '+', variant: 'primary' as const, onClick: abrirNuevo },
+          { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
+        ] : [
+          { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
+        ]
+      }
     >
 
       <div className="table-container">
@@ -160,12 +170,16 @@ export default function Partes() {
                   <div className="btn-group">
                     {p.aB === 'A' && (
                       <>
-                        <button className="btn btn-warning btn-sm" onClick={() => abrirEditar(p)}>
-                          Editar
-                        </button>
-                        <button className="btn btn-danger btn-sm" onClick={() => handleDarDeBaja(p.codParte)}>
-                          Dar de Baja
-                        </button>
+                        {puedeEditar && (
+                          <button className="btn btn-warning btn-sm" onClick={() => abrirEditar(p)}>
+                            Editar
+                          </button>
+                        )}
+                        {puedeEliminar && (
+                          <button className="btn btn-danger btn-sm" onClick={() => handleDarDeBaja(p.codParte)}>
+                            Dar de Baja
+                          </button>
+                        )}
                       </>
                     )}
                   </div>

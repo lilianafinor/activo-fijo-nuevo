@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
 import PageLayout from '../components/ui/PageLayout';
+import { useAuth } from '../context/AuthContext';
+
 
 // Helper functions to get office codes
 function getOfficeFullCode(ofic: any): string {
@@ -130,6 +132,10 @@ const FORM_VACIO = {
 };
 
 export default function Ingresos() {
+  const { user } = useAuth();
+  const puedeCrear = user?.esAdmin || user?.permisos.includes('crear_ingreso');
+  const puedeEditar = user?.esAdmin || user?.permisos.includes('editar_ingreso');
+
   const [showModal, setShowModal] = useState(false);
   const [editando, setEditando] = useState<any>(null);
   const [form, setForm] = useState<any>(FORM_VACIO);
@@ -254,7 +260,7 @@ export default function Ingresos() {
     <PageLayout
       title="Ingresos de Bienes"
       actions={[
-        { label: 'Nuevo', icon: '+', variant: 'primary', onClick: abrirNuevo },
+        ...(puedeCrear ? [{ label: 'Nuevo', icon: '+', variant: 'primary' as const, onClick: abrirNuevo }] : []),
         { label: 'Actualizar', icon: '\u21BA', onClick: () => refetch() },
       ]}
     >
@@ -299,9 +305,11 @@ export default function Ingresos() {
                   </span>
                 </td>
                 <td>
-                  <div className="btn-group">
-                    <button className="btn btn-warning btn-sm" onClick={() => abrirEditar(i)}>Editar</button>
-                  </div>
+                  {puedeEditar && (
+                    <div className="btn-group">
+                      <button className="btn btn-warning btn-sm" onClick={() => abrirEditar(i)}>Editar</button>
+                    </div>
+                  )}
                 </td>
               </tr>
             ))}

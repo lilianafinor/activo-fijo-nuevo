@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 
 /* ─── Definición de grupos y rutas ─────────────────────────── */
 interface NavItem {
@@ -22,12 +23,12 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Gestión de Activos',
     icon: '▣',
     items: [
-      { label: 'Ingresos',        to: '/ingresos',       icon: '↓' },
-      { label: 'Activos Fijos',   to: '/activos',        icon: '◈' },
-      { label: 'Asignaciones',    to: '/asignaciones',   icon: '→' },
-      { label: 'Transferencias',  to: '/transferencias', icon: '⇄' },
-      { label: 'Bajas',           to: '/bajas',          icon: '↥' },
-      { label: 'Vehículos',       to: '/vehiculos',      icon: '◻' },
+      { label: 'Ingresos',        to: '/ingresos',       icon: '↓', permission: 'ver_ingresos' },
+      { label: 'Activos Fijos',   to: '/activos',        icon: '◈', permission: 'ver_activos' },
+      { label: 'Asignaciones',    to: '/asignaciones',   icon: '→', permission: 'ver_asignaciones' },
+      { label: 'Transferencias',  to: '/transferencias', icon: '⇄', permission: 'ver_transferencias' },
+      { label: 'Bajas',           to: '/bajas',          icon: '↥', permission: 'ver_bajas' },
+      { label: 'Vehículos',       to: '/vehiculos',      icon: '◻', permission: 'ver_vehiculos' },
     ],
   },
   {
@@ -35,9 +36,9 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Contabilidad',
     icon: '≡',
     items: [
-      { label: 'Depreciaciones',  to: '/depreciaciones', icon: '▽' },
-      { label: 'Revalúos',        to: '/revaluos',       icon: '△' },
-      { label: 'Tasas UFV',       to: '/ufvs',           icon: '$' },
+      { label: 'Depreciaciones',  to: '/depreciaciones', icon: '▽', permission: 'ver_depreciaciones' },
+      { label: 'Revalúos',        to: '/revaluos',       icon: '△', permission: 'ver_reevaluos' },
+      { label: 'Tasas UFV',       to: '/ufvs',           icon: '$', permission: 'ver_tipo_cambio' },
     ],
   },
   {
@@ -45,7 +46,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Adquisiciones',
     icon: '⊕',
     items: [
-      { label: 'Adquisiciones',   to: '/adquisiciones',  icon: '⊕' },
+      { label: 'Adquisiciones',   to: '/adquisiciones',  icon: '⊕', permission: 'ver_ordenes' },
     ],
   },
   {
@@ -53,8 +54,8 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Reportes y Auditoría',
     icon: '▤',
     items: [
-      { label: 'Reportes',        to: '/reportes',       icon: '▤' },
-      { label: 'Bitácora',        to: '/logs',           icon: '≣' },
+      { label: 'Reportes',        to: '/reportes',       icon: '▤', permission: 'ver_reportes' },
+      { label: 'Bitácora',        to: '/logs',           icon: '≣', permission: 'ver_auditoria' },
     ],
   },
   {
@@ -62,8 +63,8 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Administración',
     icon: '◆',
     items: [
-      { label: 'Usuarios',        to: '/usuarios',       icon: '◉' },
-      { label: 'Roles y Permisos',to: '/roles',          icon: '◐' },
+      { label: 'Usuarios',        to: '/usuarios',       icon: '◉', permission: 'ver_usuarios' },
+      { label: 'Roles y Permisos',to: '/roles',          icon: '◐', permission: 'gestionar_roles' },
     ],
   },
   {
@@ -71,19 +72,19 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Catálogos',
     icon: '▦',
     items: [
-      { label: 'Grupos',          to: '/grupos',         icon: '▥' },
-      { label: 'Oficinas',        to: '/oficinas',       icon: '▣' },
-      { label: 'Proveedores',     to: '/proveedores',    icon: '◫' },
-      { label: 'Marcas',          to: '/marcas',         icon: '™' },
-      { label: 'Condiciones',     to: '/condiciones',    icon: '◈' },
-      { label: 'Est. de Activo',  to: '/estados',        icon: '●' },
-      { label: 'Unidades',        to: '/unidades',       icon: '▭' },
-      { label: 'Gestiones',       to: '/gestiones',      icon: '◷' },
-      { label: 'Partes',          to: '/partes',         icon: '◧' },
-      { label: 'Atributos',       to: '/atributos',      icon: '◈' },
-      { label: 'Tipos',           to: '/tipos',          icon: '◇' },
-      { label: 'Materiales',      to: '/materiales',     icon: '◼' },
-      { label: 'Funciones Adm.',  to: '/funciones',      icon: '◑' },
+      { label: 'Grupos',          to: '/grupos',         icon: '▥', permission: 'ver_grupos' },
+      { label: 'Oficinas',        to: '/oficinas',       icon: '▣', permission: 'ver_ubicaciones' },
+      { label: 'Proveedores',     to: '/proveedores',    icon: '◫', permission: 'ver_proveedores' },
+      { label: 'Marcas',          to: '/marcas',         icon: '™', permission: 'ver_marcas' },
+      { label: 'Condiciones',     to: '/condiciones',    icon: '◈', permission: 'ver_condicion_activo' },
+      { label: 'Est. de Activo',  to: '/estados',        icon: '●', permission: 'ver_estado_activo' },
+      { label: 'Unidades',        to: '/unidades',       icon: '▭', permission: 'ver_unidad_medida' },
+      { label: 'Gestiones',       to: '/gestiones',      icon: '◷', permission: 'ver_gestiones' },
+      { label: 'Partes',          to: '/partes',         icon: '◧', permission: 'ver_partes' },
+      { label: 'Atributos',       to: '/atributos',      icon: '◈', permission: 'ver_atributos' },
+      { label: 'Tipos',           to: '/tipos',          icon: '◇', permission: 'ver_tipos' },
+      { label: 'Materiales',      to: '/materiales',     icon: '◼', permission: 'ver_materiales' },
+      { label: 'Funciones Adm.',  to: '/funciones',      icon: '◑', permission: 'ver_funciones' },
     ],
   },
 ];
@@ -97,6 +98,7 @@ interface SidebarProps {
 /* ─── Componente ─────────────────────────────────────────────── */
 export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const location = useLocation();
+  const { user } = useAuth();
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({
     gestion: true,
     contabilidad: false,
@@ -106,15 +108,26 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
     catalogos: false,
   });
 
+  /* Filter visible items and groups by permissions */
+  const visibleGroups = React.useMemo(() => {
+    return NAV_GROUPS.map(group => {
+      const visibleItems = group.items.filter(item => {
+        if (!item.permission) return true;
+        return user?.esAdmin || user?.permisos.includes(item.permission);
+      });
+      return { ...group, items: visibleItems };
+    }).filter(group => group.items.length > 0);
+  }, [user]);
+
   /* Auto-abrir el grupo que contiene la ruta activa */
   React.useEffect(() => {
-    NAV_GROUPS.forEach(group => {
+    visibleGroups.forEach(group => {
       const hasActive = group.items.some(item => location.pathname === item.to);
       if (hasActive) {
         setOpenGroups(prev => ({ ...prev, [group.id]: true }));
       }
     });
-  }, [location.pathname]);
+  }, [location.pathname, visibleGroups]);
 
   const toggleGroup = (id: string) => {
     if (collapsed) return;
@@ -139,7 +152,23 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
       {/* Navigation Groups */}
       <nav className="sidebar-nav">
-        {NAV_GROUPS.map(group => {
+        {/* Dashboard Link */}
+        <div className="sidebar-items" style={{ marginBottom: '0.5rem' }}>
+          <NavLink
+            to="/dashboard"
+            className={({ isActive }) =>
+              `sidebar-item ${isActive ? 'sidebar-item-active' : ''}`
+            }
+            title={collapsed ? 'Dashboard' : undefined}
+          >
+            <span className="sidebar-item-icon">⊞</span>
+            {!collapsed && (
+              <span className="sidebar-item-label">Dashboard</span>
+            )}
+          </NavLink>
+        </div>
+
+        {visibleGroups.map(group => {
           const groupHasActive = group.items.some(item => location.pathname === item.to);
           const isOpen = openGroups[group.id];
 
@@ -183,6 +212,22 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
             </div>
           );
         })}
+
+        {/* Mi Cuenta Link */}
+        <div className="sidebar-items" style={{ marginTop: 'auto', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '0.5rem' }}>
+          <NavLink
+            to="/mi-cuenta"
+            className={({ isActive }) =>
+              `sidebar-item ${isActive ? 'sidebar-item-active' : ''}`
+            }
+            title={collapsed ? 'Mi Cuenta' : undefined}
+          >
+            <span className="sidebar-item-icon">⍥</span>
+            {!collapsed && (
+              <span className="sidebar-item-label">Mi Cuenta</span>
+            )}
+          </NavLink>
+        </div>
       </nav>
 
       {/* Footer */}

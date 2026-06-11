@@ -2,6 +2,8 @@ import PageLayout from '../components/ui/PageLayout';
 import React, { useState } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
 import { REGISTRAR_EMPLEADO_USUARIO } from '../graphql/mutations';
+import { PERMISOS_METADATA } from '../utils/permisosMetadata';
+import { useAuth } from '../context/AuthContext';
 
 // ==================== QUERIES & MUTATIONS ====================
 const GET_USUARIOS_DATA = gql`
@@ -107,6 +109,13 @@ const TIPO_DOCS = [
 ];
 
 export default function Usuarios() {
+  const { user } = useAuth();
+  const puedeCrear = user?.esAdmin || user?.permisos.includes('crear_usuario');
+  const puedeEditar = user?.esAdmin || user?.permisos.includes('editar_usuario');
+  const puedeCrearResp = user?.esAdmin || user?.permisos.includes('crear_responsable');
+  const puedeEliminarResp = user?.esAdmin || user?.permisos.includes('eliminar_responsable');
+  const puedeGestionarPermisos = user?.esAdmin || user?.permisos.includes('gestionar_permisos');
+
   const currentUserEmail = localStorage.getItem('userEmail') || '';
 
   // UI state
@@ -136,9 +145,18 @@ export default function Usuarios() {
     fecha: new Date().toISOString().split('T')[0]
   });
 
-  const [formPerm, setFormPerm] = useState({
-    idRol: '',
-    idPermiso: ''
+  // User matrix states
+  const [selectedRolId, setSelectedRolId] = useState<string>('');
+  const [activeTab, setActiveTab] = useState<'summary' | 'edit'>('summary');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [expandedModules, setExpandedModules] = useState<Record<string, boolean>>({
+    gestion: true,
+    contabilidad: true,
+    adquisiciones: true,
+    reportes: true,
+    admin: true,
+    catalogos: false,
   });
 
   // Apollo queries and mutations
@@ -149,6 +167,55 @@ export default function Usuarios() {
   const [darDeBajaResponsable] = useMutation(DAR_DE_BAJA_RESPONSABLE);
   const [editarUsuario] = useMutation(EDITAR_USUARIO);
   const [asignarRolPermisoUsuario] = useMutation(ASIGNAR_ROL_PERMISO_USUARIO);
+
+  // Memoized lookups for User permissions matrix
+  const permissionLookup = React.useMemo(() => {
+    const map = new Map<string, number>();
+    if (data?.todosPermisos) {
+      data.todosPermisos.forEach((p: any) => {
+        map.set(p.nombre, parseInt(p.idPermiso));
+      });
+    }
+    return map;
+  }, [data?.todosPermisos]);
+
+  const activeUserPermNames = React.useMemo(() => {
+    const set = new Set<string>();
+    if (usuarioSeleccionado?.rolesPermisos && selectedRolId) {
+      usuarioSeleccionado.rolesPermisos.forEach((rp: any) => {
+        if (rp.estado && String(rp.idRol?.idRol) === String(selectedRolId)) {
+          set.add(rp.idPermiso.nombre);
+        }
+      });
+    }
+    return set;
+  }, [usuarioSeleccionado, selectedRolId]);
+
+  const allActiveUserPerms = React.useMemo(() => {
+    const set = new Set<string>();
+    if (usuarioSeleccionado?.rolesPermisos) {
+      usuarioSeleccionado.rolesPermisos.forEach((rp: any) => {
+        if (rp.estado && rp.idPermiso?.nombre) {
+          set.add(rp.idPermiso.nombre);
+        }
+      });
+    }
+    return set;
+  }, [usuarioSeleccionado]);
+
+
+  const filteredMetadata = React.useMemo(() => {
+    if (!searchQuery.trim()) return PERMISOS_METADATA;
+    const q = searchQuery.toLowerCase();
+    return PERMISOS_METADATA.map(mod => {
+      const submodules = mod.submodules.filter(sub =>
+        sub.label.toLowerCase().includes(q) ||
+        mod.label.toLowerCase().includes(q) ||
+        sub.actions.some(a => a.label.toLowerCase().includes(q) || a.name.toLowerCase().includes(q))
+      );
+      return { ...mod, submodules };
+    }).filter(mod => mod.submodules.length > 0);
+  }, [searchQuery]);
 
   // Submit new employee + user creation
   const handleRegistrar = async () => {
@@ -281,66 +348,153 @@ export default function Usuarios() {
     }
   };
 
-  // Assign Role and Permission to a User
-  const handleAsignarPermiso = async () => {
-    if (!usuarioSeleccionado) return;
-    if (!formPerm.idRol || !formPerm.idPermiso) {
-      alert('Por favor seleccione un Rol y un Permiso.');
-      return;
-    }
+  // ==================== MAPPING HANDLERS ====================
+  interface PermUpdate {
+    name: string;
+    targetState: boolean;
+  }
 
+  const handleTogglePermission = async (permName: string) => {
+    if (!usuarioSeleccionado || !selectedRolId) return;
+    setIsSaving(true);
     try {
+      const permId = permissionLookup.get(permName);
+      if (!permId) {
+        alert(`El permiso ${permName} no existe en la base de datos local.`);
+        setIsSaving(false);
+        return;
+      }
+      const existingRp = usuarioSeleccionado.rolesPermisos?.find(
+        (rp: any) => rp.idPermiso?.nombre === permName && String(rp.idRol?.idRol) === String(selectedRolId)
+      );
+      const newStatus = existingRp ? !existingRp.estado : true;
+
+      // Medida de seguridad: impedir que el usuario actual se quite su permiso de gestionar roles
+      if (usuarioSeleccionado.correo === currentUserEmail && permName === 'gestionar_roles' && !newStatus) {
+        if (!window.confirm('⚠️ Está a punto de revocar su propio permiso de Administrador/Gestionar Roles. Esto podría dejarlo sin acceso a esta sección. ¿Desea continuar?')) {
+          setIsSaving(false);
+          return;
+        }
+      }
+
       await asignarRolPermisoUsuario({
         variables: {
-          idUsuario: parseInt(String(usuarioSeleccionado.idUsuario)),
-          idRol: parseInt(formPerm.idRol),
-          idPermiso: parseInt(formPerm.idPermiso),
-          estado: true
+          idUsuario: parseInt(usuarioSeleccionado.idUsuario),
+          idRol: parseInt(selectedRolId),
+          idPermiso: permId,
+          estado: newStatus
         }
       });
-      
-      // Actualizar el estado local para ver el cambio reflejado de inmediato
+
       const prevSelId = usuarioSeleccionado.idUsuario;
-      refetch().then((newVal) => {
-        const updatedUsr = newVal.data?.todosUsuarios?.find((u: any) => u.idUsuario === prevSelId);
-        if (updatedUsr) setUsuarioSeleccionado(updatedUsr);
-      });
-      
-      setFormPerm({ idRol: '', idPermiso: '' });
+      const { data: newData } = await refetch();
+      const updatedUsr = newData?.todosUsuarios?.find((u: any) => u.idUsuario === prevSelId);
+      if (updatedUsr) setUsuarioSeleccionado(updatedUsr);
     } catch (e: any) {
       alert('Error: ' + e.message);
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  // Revoke Role and Permission from a User
-  const handleRevocarPermiso = async (idRol: number, idPermiso: number, nombreRol: string) => {
-    if (!usuarioSeleccionado) return;
-
-    // Medida de seguridad: impedir que el usuario actual se quite su rol de Administrador
-    if (usuarioSeleccionado.correo === currentUserEmail && nombreRol.toLowerCase() === 'administrador') {
-      if (!window.confirm('⚠️ Está a punto de revocar su propio permiso de Administrador. Esto podría dejarlo sin acceso a ciertas secciones del sistema. ¿Desea continuar?')) {
-        return;
-      }
-    }
-
+  const handleBulkToggleUser = async (updates: PermUpdate[]) => {
+    if (!usuarioSeleccionado || !selectedRolId || updates.length === 0) return;
+    setIsSaving(true);
     try {
-      await asignarRolPermisoUsuario({
-        variables: {
-          idUsuario: parseInt(String(usuarioSeleccionado.idUsuario)),
-          idRol: parseInt(String(idRol)),
-          idPermiso: parseInt(String(idPermiso)),
-          estado: false
+      const promises = [];
+      for (const update of updates) {
+        const permId = permissionLookup.get(update.name);
+        if (!permId) continue;
+
+        const existingRp = usuarioSeleccionado.rolesPermisos?.find(
+          (rp: any) => rp.idPermiso?.nombre === update.name && String(rp.idRol?.idRol) === String(selectedRolId)
+        );
+        const currentStatus = existingRp ? existingRp.estado : false;
+
+        if (currentStatus !== update.targetState) {
+          promises.push(
+            asignarRolPermisoUsuario({
+              variables: {
+                idUsuario: parseInt(usuarioSeleccionado.idUsuario),
+                idRol: parseInt(selectedRolId),
+                idPermiso: permId,
+                estado: update.targetState
+              }
+            })
+          );
+        }
+      }
+
+      if (promises.length > 0) {
+        await Promise.all(promises);
+        const prevSelId = usuarioSeleccionado.idUsuario;
+        const { data: newData } = await refetch();
+        const updatedUsr = newData?.todosUsuarios?.find((u: any) => u.idUsuario === prevSelId);
+        if (updatedUsr) setUsuarioSeleccionado(updatedUsr);
+      }
+    } catch (e: any) {
+      alert('Error al actualizar permisos del usuario: ' + e.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleToggleModule = (moduleObj: any, targetState: boolean) => {
+    const updates: PermUpdate[] = [];
+    moduleObj.submodules.forEach((sub: any) => {
+      sub.actions.forEach((act: any) => {
+        updates.push({ name: act.name, targetState });
+      });
+    });
+    handleBulkToggleUser(updates);
+  };
+
+  const handleToggleModuleColumn = (moduleObj: any, type: string, targetState: boolean) => {
+    const updates: PermUpdate[] = [];
+    moduleObj.submodules.forEach((sub: any) => {
+      sub.actions.forEach((act: any) => {
+        if (act.type === type) {
+          updates.push({ name: act.name, targetState });
         }
       });
-      
-      const prevSelId = usuarioSeleccionado.idUsuario;
-      refetch().then((newVal) => {
-        const updatedUsr = newVal.data?.todosUsuarios?.find((u: any) => u.idUsuario === prevSelId);
-        if (updatedUsr) setUsuarioSeleccionado(updatedUsr);
+    });
+    handleBulkToggleUser(updates);
+  };
+
+  const handleToggleSubmodule = (subObj: any, targetState: boolean) => {
+    const updates: PermUpdate[] = [];
+    subObj.actions.forEach((act: any) => {
+      updates.push({ name: act.name, targetState });
+    });
+    handleBulkToggleUser(updates);
+  };
+
+  const handleToggleRoleAll = (targetState: boolean) => {
+    const updates: PermUpdate[] = [];
+    PERMISOS_METADATA.forEach(mod => {
+      mod.submodules.forEach(sub => {
+        sub.actions.forEach(act => {
+          updates.push({ name: act.name, targetState });
+        });
       });
-    } catch (e: any) {
-      alert('Error: ' + e.message);
-    }
+    });
+    handleBulkToggleUser(updates);
+  };
+
+  const handleToggleRoleReadOnly = () => {
+    const updates: PermUpdate[] = [];
+    PERMISOS_METADATA.forEach(mod => {
+      mod.submodules.forEach(sub => {
+        sub.actions.forEach(act => {
+          updates.push({ name: act.name, targetState: act.type === 'ver' });
+        });
+      });
+    });
+    handleBulkToggleUser(updates);
+  };
+
+  const toggleExpandModule = (modId: string) => {
+    setExpandedModules(prev => ({ ...prev, [modId]: !prev[modId] }));
   };
 
   // Helpers to check if user's employee is active responsible
@@ -357,16 +511,20 @@ export default function Usuarios() {
   return (
     <PageLayout
       title="Personal, Usuarios y Permisos"
-      actions={[
-        { label: 'Nuevo', icon: '+', variant: 'primary' as const, onClick: () => setShowModal(true) },
-        { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
-      ]}
+      actions={
+        puedeCrear ? [
+          { label: 'Nuevo', icon: '+', variant: 'primary' as const, onClick: () => setShowModal(true) },
+          { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
+        ] : [
+          { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
+        ]
+      }
     >
 
 
-      <div style={{ display: 'grid', gridTemplateColumns: usuarioSeleccionado ? '1.5fr 1fr' : '1fr', gap: '1.5rem', alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: usuarioSeleccionado ? '1fr 1.6fr' : '1fr', gap: '1.5rem', alignItems: 'start' }}>
         {/* Tabla principal de usuarios */}
-        <div className="table-container">
+        <div className="table-container" style={{ overflowX: 'auto' }}>
           <table>
             <thead>
               <tr>
@@ -388,7 +546,11 @@ export default function Usuarios() {
                 return (
                   <tr
                     key={u.idUsuario}
-                    onClick={() => setUsuarioSeleccionado(u)}
+                    onClick={() => {
+                      setUsuarioSeleccionado(u);
+                      setActiveTab('summary');
+                      setSelectedRolId('');
+                    }}
                     style={{ cursor: 'pointer', background: isSelected ? '#e8f4fd' : 'white' }}
                   >
                     <td><strong>#{u.idUsuario}</strong></td>
@@ -405,30 +567,36 @@ export default function Usuarios() {
                           <span className="badge badge-success" style={{ fontSize: '0.72rem' }}>
                             Prog. {respObj.codEstprog}
                           </span>
-                          <button
-                            className="btn btn-danger btn-sm"
-                            style={{ padding: '1px 5px', fontSize: '0.7rem' }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleBajaResponsable(respObj.codResp);
-                            }}
-                          >
-                            Dar de Baja
-                          </button>
+                          {puedeEliminarResp && (
+                            <button
+                              className="btn btn-danger btn-sm"
+                              style={{ padding: '1px 5px', fontSize: '0.7rem' }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleBajaResponsable(respObj.codResp);
+                              }}
+                            >
+                              Dar de Baja
+                            </button>
+                          )}
                         </div>
                       ) : u.idEmpleado ? (
-                        <button
-                          className="btn btn-primary btn-sm"
-                          style={{ padding: '2px 8px', fontSize: '0.72rem' }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEmpleadoParaResponsable(u.idEmpleado);
-                            setFormResp(prev => ({ ...prev, codEstprog: '' }));
-                            setShowRespModal(true);
-                          }}
-                        >
-                          Hacer Responsable
-                        </button>
+                        puedeCrearResp ? (
+                          <button
+                            className="btn btn-primary btn-sm"
+                            style={{ padding: '2px 8px', fontSize: '0.72rem' }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEmpleadoParaResponsable(u.idEmpleado);
+                              setFormResp(prev => ({ ...prev, codEstprog: '' }));
+                              setShowRespModal(true);
+                            }}
+                          >
+                            Hacer Responsable
+                          </button>
+                        ) : (
+                          '-'
+                        )
                       ) : (
                         '-'
                       )}
@@ -440,13 +608,13 @@ export default function Usuarios() {
                         style={{
                           padding: '0.2rem 0.5rem',
                           fontSize: '0.75rem',
-                          background: u.estado === 'ACTIVO' ? '#d4edda' : u.estado === 'INACTIVO' ? '#e2e3e5' : '#f8d7da',
+                          background: u.estado === 'ACTIVO' ? '#d4edda' : u.estado === 'INACTIVO' ? '#e2e8f0' : '#f8d7da',
                           color: u.estado === 'ACTIVO' ? '#155724' : u.estado === 'INACTIVO' ? '#383d41' : '#721c24',
                           border: 'none',
                           borderRadius: '4px',
                           cursor: isMe ? 'not-allowed' : 'pointer'
                         }}
-                        disabled={isMe}
+                        disabled={isMe || !puedeEditar}
                         onChange={(e) => handleCambiarEstado(u.idUsuario, e.target.value, u.correo)}
                       >
                         <option value="ACTIVO">Activo</option>
@@ -455,7 +623,17 @@ export default function Usuarios() {
                       </select>
                     </td>
                     <td>
-                      <button className="btn btn-info btn-sm">Permisos</button>
+                      <button
+                        className="btn btn-info btn-sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setUsuarioSeleccionado(u);
+                          setActiveTab('summary');
+                          setSelectedRolId('');
+                        }}
+                      >
+                        Permisos
+                      </button>
                     </td>
                   </tr>
                 );
@@ -466,174 +644,528 @@ export default function Usuarios() {
 
         {/* Panel lateral derecho de permisos */}
         {usuarioSeleccionado && (
-          <div style={{ background: 'white', padding: '1.5rem', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+          <div style={{
+            background: 'white', padding: '1.5rem', borderRadius: '12px', border: '1px solid #e2e8f0',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.05)', position: 'sticky', top: '1.5rem',
+            maxHeight: 'calc(100vh - 3rem)', overflowY: 'auto'
+          }}>
+            {/* Saving Loading Spinner Overlay */}
+            {isSaving && (
+              <div style={{
+                position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+                backgroundColor: 'rgba(255, 255, 255, 0.75)', zIndex: 100,
+                display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center',
+                borderRadius: '12px'
+              }}>
+                <div className="loading-spinner" style={{
+                  border: '4px solid #f3f3f3', borderTop: '4px solid #1a3c6e',
+                  borderRadius: '50%', width: '40px', height: '40px', animation: 'spin 1s linear infinite',
+                  marginBottom: '1rem'
+                }}></div>
+                <strong style={{ color: '#1a3c6e', fontSize: '0.9rem' }}>Actualizando permisos del usuario...</strong>
+              </div>
+            )}
+
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' }}>
-              <h3 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#1a3c6e', margin: 0 }}>
-                🛡️ Permisos de {usuarioSeleccionado.idEmpleado?.nombre}
-              </h3>
+              <div>
+                <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#1a3c6e', margin: 0 }}>
+                  Permisos de {usuarioSeleccionado.idEmpleado?.nombre} {usuarioSeleccionado.idEmpleado?.apellido}
+                </h3>
+                <span style={{ fontSize: '0.78rem', color: '#64748b' }}>
+                  Correo: <strong>{usuarioSeleccionado.correo}</strong>
+                </span>
+              </div>
               <button
-                style={{ background: 'none', border: 'none', fontSize: '1.25rem', color: '#94a3b8', cursor: 'pointer' }}
-                onClick={() => setUsuarioSeleccionado(null)}
+                style={{ background: 'none', border: 'none', fontSize: '1.5rem', color: '#94a3b8', cursor: 'pointer', padding: '0 5px' }}
+                onClick={() => { setUsuarioSeleccionado(null); setSelectedRolId(''); setActiveTab('summary'); }}
               >
                 ×
               </button>
             </div>
-            
-            <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '0.5rem' }}>
-              Correo de cuenta: <strong>{usuarioSeleccionado.correo}</strong>
-            </p>
-            {usuarioSeleccionado.idEmpleado && (
-              <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '1rem' }}>
-                Documento: <strong>
-                  {usuarioSeleccionado.idEmpleado.tipoDocumento} {usuarioSeleccionado.idEmpleado.numeroDocumento} 
-                  {usuarioSeleccionado.idEmpleado.procedencia ? ` (${usuarioSeleccionado.idEmpleado.procedencia})` : ''}
-                </strong>
-              </p>
-            )}
 
-            {/* Listado de roles y permisos activos */}
-            <div style={{ marginBottom: '1.5rem' }}>
-              <div className="section-title" style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.5px' }}>
-                Roles y Permisos Asignados:
-              </div>
-              
-              {(!usuarioSeleccionado.rolesPermisos || usuarioSeleccionado.rolesPermisos.filter((rp: any) => rp.estado).length === 0) ? (
-                <p style={{ fontSize: '0.85rem', color: '#aaa', fontStyle: 'italic', margin: '0.5rem 0' }}>
-                  El usuario no tiene ningún rol o permiso asignado.
-                </p>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.5rem' }}>
-                  {(() => {
-                    const activeRp = usuarioSeleccionado.rolesPermisos.filter((rp: any) => rp.estado);
-                    const groupedByRol: Record<number, { rol: any; permisos: { idPermiso: number; nombre: string }[] }> = {};
-                    
-                    activeRp.forEach((rp: any) => {
-                      const rolId = rp.idRol.idRol;
-                      if (!groupedByRol[rolId]) {
-                        groupedByRol[rolId] = {
-                          rol: rp.idRol,
-                          permisos: []
-                        };
-                      }
-                      if (!groupedByRol[rolId].permisos.some(p => p.idPermiso === rp.idPermiso.idPermiso)) {
-                        groupedByRol[rolId].permisos.push({
-                          idPermiso: rp.idPermiso.idPermiso,
-                          nombre: rp.idPermiso.nombre
-                        });
-                      }
-                    });
-
-                    return Object.values(groupedByRol).map((group: any) => (
-                      <div
-                        key={group.rol.idRol}
-                        style={{
-                          background: '#f8fafc',
-                          padding: '0.75rem',
-                          borderRadius: '8px',
-                          border: '1px solid #e2e8f0'
-                        }}
-                      >
-                        <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#1a3c6e', marginBottom: '0.4rem' }}>
-                          🔑 {group.rol.nombre}
-                          {group.rol.descripcion && (
-                            <span style={{ fontSize: '0.72rem', fontWeight: 400, color: '#64748b', marginLeft: '0.4rem' }}>
-                              ({group.rol.descripcion})
-                            </span>
-                          )}
-                        </div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
-                          {group.permisos.map((perm: any) => (
-                            <span
-                              key={perm.idPermiso}
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                backgroundColor: '#e2faf0',
-                                color: '#065f46',
-                                padding: '3px 8px',
-                                borderRadius: '12px',
-                                fontSize: '0.72rem',
-                                fontWeight: 500,
-                                border: '1px solid #a7f3d0'
-                              }}
-                            >
-                              {perm.nombre}
-                              <button
-                                style={{
-                                  background: 'none',
-                                  border: 'none',
-                                  color: '#047857',
-                                  cursor: 'pointer',
-                                  fontSize: '0.85rem',
-                                  padding: 0,
-                                  lineHeight: 1,
-                                  marginLeft: '2px',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  width: '12px',
-                                  height: '12px'
-                                }}
-                                title={`Revocar permiso ${perm.nombre}`}
-                                onClick={() => handleRevocarPermiso(group.rol.idRol, perm.idPermiso, group.rol.nombre)}
-                              >
-                                ✕
-                              </button>
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    ));
-                  })()}
-                </div>
+            {/* Tab Navigation */}
+            <div style={{ display: 'flex', borderBottom: '2px solid #e2e8f0', marginBottom: '1.25rem', gap: '1rem' }}>
+              <button
+                onClick={() => setActiveTab('summary')}
+                style={{
+                  padding: '0.6rem 1rem',
+                  background: 'none',
+                  border: 'none',
+                  borderBottom: activeTab === 'summary' ? '3px solid #1a3c6e' : '3px solid transparent',
+                  color: activeTab === 'summary' ? '#1a3c6e' : '#64748b',
+                  fontWeight: activeTab === 'summary' ? 700 : 500,
+                  cursor: 'pointer',
+                  fontSize: '0.88rem',
+                  transition: 'all 0.2s'
+                }}
+              >
+                Permisos Activos
+              </button>
+              {puedeGestionarPermisos && (
+                <button
+                  onClick={() => setActiveTab('edit')}
+                  style={{
+                    padding: '0.6rem 1rem',
+                    background: 'none',
+                    border: 'none',
+                    borderBottom: activeTab === 'edit' ? '3px solid #1a3c6e' : '3px solid transparent',
+                    color: activeTab === 'edit' ? '#1a3c6e' : '#64748b',
+                    fontWeight: activeTab === 'edit' ? 700 : 500,
+                    cursor: 'pointer',
+                    fontSize: '0.88rem',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  Modificar Permisos
+                </button>
               )}
             </div>
 
-            {/* Asignación rápida de Rol + Permiso */}
-            <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '1rem' }}>
-              <div className="section-title" style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.5px' }}>
-                Asignar Nuevo Rol y Permiso:
-              </div>
-              
-              <div className="form-group" style={{ marginBottom: '0.75rem' }}>
-                <label>Seleccionar Rol *</label>
-                <select
-                  value={formPerm.idRol}
-                  onChange={e => setFormPerm({ ...formPerm, idRol: e.target.value })}
-                >
-                  <option value="">Seleccione...</option>
-                  {data?.todosRoles?.map((r: any) => (
-                    <option key={r.idRol} value={r.idRol}>
-                      {r.nombre} ({r.descripcion || 'Sin descripción'})
-                    </option>
-                  ))}
-                </select>
-              </div>
+            {/* Tab 1: Permisos Activos */}
+            {activeTab === 'summary' && (
+              <div>
+                {/* Resumen de Roles Activos para el Usuario */}
+                <div style={{ marginBottom: '1.25rem', padding: '0.75rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #cbd5e1' }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>
+                    Roles con Permisos Activos:
+                  </span>
+                  {(() => {
+                    const map = new Map<number, string>();
+                    if (usuarioSeleccionado.rolesPermisos) {
+                      usuarioSeleccionado.rolesPermisos.forEach((rp: any) => {
+                        if (rp.estado && rp.idRol) {
+                          map.set(rp.idRol.idRol, rp.idRol.nombre);
+                        }
+                      });
+                    }
+                    const activeRoles = Array.from(map.entries());
+                    if (activeRoles.length === 0) {
+                      return <em style={{ fontSize: '0.78rem', color: '#94a3b8' }}>Sin roles o permisos asignados.</em>;
+                    }
+                    return (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                        {activeRoles.map(([idRol, name]) => (
+                          <span key={idRol} className="badge" style={{ fontSize: '0.7rem', padding: '3px 8px', borderRadius: '12px', background: '#e0f2fe', color: '#0369a1', border: '1px solid #bae6fd', fontWeight: 600 }}>
+                            {name}
+                          </span>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                </div>
 
-              <div className="form-group" style={{ marginBottom: '1rem' }}>
-                <label>Seleccionar Permiso *</label>
-                <select
-                  value={formPerm.idPermiso}
-                  onChange={e => setFormPerm({ ...formPerm, idPermiso: e.target.value })}
-                >
-                  <option value="">Seleccione...</option>
-                  {data?.todosPermisos?.map((p: any) => (
-                    <option key={p.idPermiso} value={p.idPermiso}>
-                      {p.nombre}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                {/* Listado de Permisos Categorizados */}
+                <div style={{ paddingRight: '0.25rem' }}>
+                  {(() => {
+                    let hasAnyActive = false;
+                    const renderedModules = PERMISOS_METADATA.map(mod => {
+                      const activeSubmodules = mod.submodules.map(sub => {
+                        const activeActions = sub.actions.filter(act => allActiveUserPerms.has(act.name));
+                        return { ...sub, activeActions };
+                      }).filter(sub => sub.activeActions.length > 0);
 
-              <button
-                className="btn btn-primary"
-                style={{ width: '100%', padding: '0.55rem' }}
-                onClick={handleAsignarPermiso}
-              >
-                + Asignar Permiso
-              </button>
-            </div>
+                      if (activeSubmodules.length === 0) return null;
+                      hasAnyActive = true;
+
+                      return (
+                        <div key={mod.id} style={{ marginBottom: '1rem', border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden' }}>
+                          <div style={{ background: '#f1f5f9', color: '#1a3c6e', padding: '0.5rem 0.8rem', fontWeight: 700, fontSize: '0.82rem', borderBottom: '1px solid #cbd5e1' }}>
+                            <span style={{ marginRight: '6px', color: '#1a3c6e' }}>■</span>
+                            {mod.label}
+                          </div>
+                          <div style={{ padding: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                            {activeSubmodules.map(sub => (
+                              <div key={sub.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.4rem 0.6rem', background: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                                <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#334155' }}>
+                                  {sub.label}
+                                </span>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', justifyContent: 'flex-end', maxWidth: '65%' }}>
+                                  {sub.activeActions.map(act => {
+                                    let badgeStyle = {
+                                      fontSize: '0.65rem',
+                                      padding: '2px 6px',
+                                      borderRadius: '4px',
+                                      fontWeight: 600,
+                                      textTransform: 'uppercase' as const,
+                                      border: '1px solid'
+                                    };
+                                    let badgeColor = { background: '#e2e8f0', color: '#475569', borderColor: '#cbd5e1' };
+                                    if (act.type === 'ver') {
+                                      badgeColor = { background: '#e0f2fe', color: '#0369a1', borderColor: '#bae6fd' };
+                                    } else if (act.type === 'crear') {
+                                      badgeColor = { background: '#dcfce7', color: '#15803d', borderColor: '#bbf7d0' };
+                                    } else if (act.type === 'editar') {
+                                      badgeColor = { background: '#fef9c3', color: '#a16207', borderColor: '#fef08a' };
+                                    } else if (act.type === 'eliminar') {
+                                      badgeColor = { background: '#fee2e2', color: '#b91c1c', borderColor: '#fecaca' };
+                                    } else if (act.type === 'otro') {
+                                      badgeColor = { background: '#f3e8ff', color: '#6b21a8', borderColor: '#e9d5ff' };
+                                    }
+                                    return (
+                                      <span key={act.name} style={{ ...badgeStyle, ...badgeColor }} title={act.name}>
+                                        {act.label}
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    });
+
+                    if (!hasAnyActive) {
+                      return (
+                        <div style={{ padding: '2rem 1rem', textAlign: 'center', color: '#64748b', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1' }}>
+                          <p style={{ fontSize: '0.82rem', margin: 0 }}>
+                            El usuario no tiene ningún permiso activo en este momento. Vaya a la pestaña <strong>Modificar Permisos</strong> para configurar sus accesos.
+                          </p>
+                        </div>
+                      );
+                    }
+                    return renderedModules;
+                  })()}
+                </div>
+              </div>
+            )}
+
+            {/* Tab 2: Modificar Permisos */}
+            {activeTab === 'edit' && (
+              <div>
+                {/* Roles Activos del Usuario (Guía Visual) */}
+                {(() => {
+                  const map = new Map<number, string>();
+                  if (usuarioSeleccionado.rolesPermisos) {
+                    usuarioSeleccionado.rolesPermisos.forEach((rp: any) => {
+                      if (rp.estado && rp.idRol) {
+                        map.set(rp.idRol.idRol, rp.idRol.nombre);
+                      }
+                    });
+                  }
+                  const activeRoles = Array.from(map.entries());
+                  if (activeRoles.length > 0) {
+                    return (
+                      <div style={{ marginBottom: '1.25rem', padding: '0.75rem', background: '#f0fdf4', borderRadius: '8px', border: '1px solid #bbf7d0' }}>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#15803d', textTransform: 'uppercase', display: 'block', marginBottom: '0.4rem' }}>
+                          Roles Activos del Usuario (Haga clic para editar o quitar permisos):
+                        </span>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                          {activeRoles.map(([idRol, name]) => {
+                            const isCurrentlySelected = String(selectedRolId) === String(idRol);
+                            return (
+                              <button
+                                key={idRol}
+                                onClick={() => setSelectedRolId(String(idRol))}
+                                style={{
+                                  fontSize: '0.7rem',
+                                  padding: '4px 10px',
+                                  borderRadius: '12px',
+                                  background: isCurrentlySelected ? '#15803d' : '#dcfce7',
+                                  color: isCurrentlySelected ? '#ffffff' : '#15803d',
+                                  border: '1px solid',
+                                  borderColor: isCurrentlySelected ? '#15803d' : '#bbf7d0',
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  transition: 'all 0.2s',
+                                }}
+                              >
+                                {name} {isCurrentlySelected ? '✓' : ''}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+
+                {/* Selector de Rol para editar */}
+                <div className="form-group" style={{ marginBottom: '1.25rem' }}>
+                  <label style={{ fontSize: '0.78rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', marginBottom: '0.35rem', display: 'block' }}>
+                    Seleccionar Rol para Personalizar Permisos *
+                  </label>
+                  <select
+                    value={selectedRolId}
+                    disabled={!puedeGestionarPermisos}
+                    onChange={e => {
+                      setSelectedRolId(e.target.value);
+                      setSearchQuery('');
+                    }}
+                    style={{ width: '100%', padding: '0.45rem', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.85rem' }}
+                  >
+                    <option value="">-- Seleccione un Rol para gestionar --</option>
+                    {data?.todosRoles?.map((r: any) => {
+                      const hasRoleActive = usuarioSeleccionado.rolesPermisos?.some(
+                        (rp: any) => rp.estado && String(rp.idRol?.idRol) === String(r.idRol)
+                      );
+                      return (
+                        <option key={r.idRol} value={r.idRol}>
+                          {r.nombre} {hasRoleActive ? ' (Activo)' : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+
+                {selectedRolId ? (
+                  <>
+                    {/* Toolbar de Matriz */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', background: '#f8fafc', padding: '0.5rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                      <input
+                        type="text"
+                        placeholder="Buscar página..."
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        style={{ flex: 1, minWidth: '150px', padding: '0.35rem 0.6rem', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.8rem' }}
+                      />
+                      
+                      <div style={{ display: 'flex', gap: '0.3rem' }}>
+                        <button className="btn btn-secondary btn-sm" disabled={!puedeGestionarPermisos} onClick={() => handleToggleRoleReadOnly()} style={{ fontSize: '0.7rem', padding: '4px 8px' }}>
+                          Lectura
+                        </button>
+                        <button className="btn btn-primary btn-sm" disabled={!puedeGestionarPermisos} onClick={() => handleToggleRoleAll(true)} style={{ fontSize: '0.7rem', padding: '4px 8px' }}>
+                          Todos
+                        </button>
+                        <button className="btn btn-danger btn-sm" disabled={!puedeGestionarPermisos} onClick={() => handleToggleRoleAll(false)} style={{ fontSize: '0.7rem', padding: '4px 8px', background: '#ef4444' }}>
+                          Ninguno
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Listado de Módulos */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      {filteredMetadata.map(moduleObj => {
+                        const isExpanded = expandedModules[moduleObj.id];
+                        
+                        let activeCount = 0;
+                        let totalCount = 0;
+                        moduleObj.submodules.forEach(sub => {
+                          sub.actions.forEach(act => {
+                            totalCount++;
+                            if (activeUserPermNames.has(act.name)) activeCount++;
+                          });
+                        });
+
+                        return (
+                          <div key={moduleObj.id} style={{ border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden' }}>
+                            
+                            {/* Banner del Módulo */}
+                            <div style={{
+                              background: '#1a3c6e', color: 'white', padding: '0.5rem 0.8rem',
+                              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                              cursor: 'pointer', userSelect: 'none'
+                            }} onClick={() => toggleExpandModule(moduleObj.id)}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                <span style={{ transform: isExpanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s', display: 'inline-block', fontSize: '0.75rem' }}>▶</span>
+                                <strong style={{ fontSize: '0.85rem' }}>{moduleObj.label}</strong>
+                                <span style={{ fontSize: '0.68rem', background: 'rgba(255,255,255,0.2)', padding: '1px 6px', borderRadius: '10px' }}>
+                                  {activeCount}/{totalCount}
+                                </span>
+                              </div>
+
+                              {/* Controles de Lote */}
+                              <div style={{ display: 'flex', gap: '0.3rem' }} onClick={e => e.stopPropagation()}>
+                                <button className="btn btn-sm" style={{ padding: '1px 5px', fontSize: '0.65rem', color: 'white', background: 'rgba(255,255,255,0.15)', border: 'none' }}
+                                        onClick={() => handleToggleModule(moduleObj, true)}>
+                                  Todo
+                                </button>
+                                <button className="btn btn-sm" style={{ padding: '1px 5px', fontSize: '0.65rem', color: '#ffb3b3', background: 'rgba(255,255,255,0.1)', border: 'none' }}
+                                        onClick={() => handleToggleModule(moduleObj, false)}>
+                                  Quitar
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Tabla de Submódulos */}
+                            {isExpanded && (
+                              <div style={{ background: '#ffffff', padding: '0.35rem', overflowX: 'auto' }}>
+                                <table className="matrix-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                                  <thead>
+                                    <tr style={{ background: '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
+                                      <th style={{ padding: '0.5rem', textAlign: 'left' }}>Submódulo / Página</th>
+                                      <th style={{ padding: '0.5rem', textAlign: 'center', width: '70px' }}>
+                                        Ver
+                                        <button title="Toggle columna Ver" style={{ display: 'block', margin: '2px auto 0 auto', padding: '0px 3px', fontSize: '0.58rem', cursor: 'pointer', background: '#e2e8f0', border: '1px solid #cbd5e1', borderRadius: '3px' }}
+                                                onClick={() => {
+                                                  const allVerChecked = moduleObj.submodules.every(sub => {
+                                                    const act = sub.actions.find(a => a.type === 'ver');
+                                                    return !act || activeUserPermNames.has(act.name);
+                                                  });
+                                                  handleToggleModuleColumn(moduleObj, 'ver', !allVerChecked);
+                                                }}>⇅</button>
+                                      </th>
+                                      <th style={{ padding: '0.5rem', textAlign: 'center', width: '70px' }}>
+                                        Crear
+                                        <button title="Toggle columna Crear" style={{ display: 'block', margin: '2px auto 0 auto', padding: '0px 3px', fontSize: '0.58rem', cursor: 'pointer', background: '#e2e8f0', border: '1px solid #cbd5e1', borderRadius: '3px' }}
+                                                onClick={() => {
+                                                  const allCrearChecked = moduleObj.submodules.every(sub => {
+                                                    const act = sub.actions.find(a => a.type === 'crear');
+                                                    return !act || activeUserPermNames.has(act.name);
+                                                  });
+                                                  handleToggleModuleColumn(moduleObj, 'crear', !allCrearChecked);
+                                                }}>⇅</button>
+                                      </th>
+                                      <th style={{ padding: '0.5rem', textAlign: 'center', width: '70px' }}>
+                                        Editar
+                                        <button title="Toggle columna Editar" style={{ display: 'block', margin: '2px auto 0 auto', padding: '0px 3px', fontSize: '0.58rem', cursor: 'pointer', background: '#e2e8f0', border: '1px solid #cbd5e1', borderRadius: '3px' }}
+                                                onClick={() => {
+                                                  const allEditarChecked = moduleObj.submodules.every(sub => {
+                                                    const act = sub.actions.find(a => a.type === 'editar');
+                                                    return !act || activeUserPermNames.has(act.name);
+                                                  });
+                                                  handleToggleModuleColumn(moduleObj, 'editar', !allEditarChecked);
+                                                }}>⇅</button>
+                                      </th>
+                                      <th style={{ padding: '0.5rem', textAlign: 'center', width: '70px' }}>
+                                        Anul/Elim
+                                        <button title="Toggle columna Eliminar" style={{ display: 'block', margin: '2px auto 0 auto', padding: '0px 3px', fontSize: '0.58rem', cursor: 'pointer', background: '#e2e8f0', border: '1px solid #cbd5e1', borderRadius: '3px' }}
+                                                onClick={() => {
+                                                  const allElimChecked = moduleObj.submodules.every(sub => {
+                                                    const act = sub.actions.find(a => a.type === 'eliminar');
+                                                    return !act || activeUserPermNames.has(act.name);
+                                                  });
+                                                  handleToggleModuleColumn(moduleObj, 'eliminar', !allElimChecked);
+                                                }}>⇅</button>
+                                      </th>
+                                      <th style={{ padding: '0.5rem', textAlign: 'left' }}>Acciones Especiales</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {moduleObj.submodules.map((sub, idx) => {
+                                      const verAction = sub.actions.find(a => a.type === 'ver');
+                                      const crearAction = sub.actions.find(a => a.type === 'crear');
+                                      const editarAction = sub.actions.find(a => a.type === 'editar');
+                                      const eliminarAction = sub.actions.find(a => a.type === 'eliminar');
+                                      const otrasActions = sub.actions.filter(a => a.type === 'otro');
+
+                                      const isPageAllChecked = sub.actions.every(a => activeUserPermNames.has(a.name));
+
+                                      return (
+                                        <tr key={sub.id} style={{ background: idx % 2 === 0 ? '#f8fafc' : '#ffffff', borderBottom: '1px solid #e2e8f0' }}>
+                                          
+                                          {/* Submódulo label & check row */}
+                                          <td style={{ padding: '0.5rem', fontWeight: 600, color: '#334155' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                              <input
+                                                type="checkbox"
+                                                title="Toda la fila"
+                                                checked={isPageAllChecked}
+                                                disabled={!puedeGestionarPermisos}
+                                                onChange={e => handleToggleSubmodule(sub, e.target.checked)}
+                                                style={{ cursor: 'pointer', width: '12px', height: '12px' }}
+                                              />
+                                              <span>{sub.label}</span>
+                                            </div>
+                                          </td>
+
+                                          {/* Ver */}
+                                          <td style={{ padding: '0.5rem', textAlign: 'center' }}>
+                                            {verAction && (
+                                              <input
+                                                type="checkbox"
+                                                checked={activeUserPermNames.has(verAction.name)}
+                                                disabled={!puedeGestionarPermisos}
+                                                onChange={() => handleTogglePermission(verAction.name)}
+                                                style={{ cursor: 'pointer', width: '14px', height: '14px' }}
+                                              />
+                                            )}
+                                          </td>
+
+                                          {/* Crear */}
+                                          <td style={{ padding: '0.5rem', textAlign: 'center' }}>
+                                            {crearAction && (
+                                              <input
+                                                type="checkbox"
+                                                checked={activeUserPermNames.has(crearAction.name)}
+                                                disabled={!puedeGestionarPermisos}
+                                                onChange={() => handleTogglePermission(crearAction.name)}
+                                                style={{ cursor: 'pointer', width: '14px', height: '14px' }}
+                                              />
+                                            )}
+                                          </td>
+
+                                          {/* Editar */}
+                                          <td style={{ padding: '0.5rem', textAlign: 'center' }}>
+                                            {editarAction && (
+                                              <input
+                                                type="checkbox"
+                                                checked={activeUserPermNames.has(editarAction.name)}
+                                                disabled={!puedeGestionarPermisos}
+                                                onChange={() => handleTogglePermission(editarAction.name)}
+                                                style={{ cursor: 'pointer', width: '14px', height: '14px' }}
+                                              />
+                                            )}
+                                          </td>
+
+                                          {/* Eliminar */}
+                                          <td style={{ padding: '0.5rem', textAlign: 'center' }}>
+                                            {eliminarAction && (
+                                              <input
+                                                type="checkbox"
+                                                checked={activeUserPermNames.has(eliminarAction.name)}
+                                                disabled={!puedeGestionarPermisos}
+                                                onChange={() => handleTogglePermission(eliminarAction.name)}
+                                                style={{ cursor: 'pointer', width: '14px', height: '14px' }}
+                                              />
+                                            )}
+                                          </td>
+
+                                          {/* Otros */}
+                                          <td style={{ padding: '0.5rem' }}>
+                                            {otrasActions.length > 0 ? (
+                                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
+                                                {otrasActions.map(act => (
+                                                  <label key={act.name} style={{
+                                                    display: 'inline-flex', alignItems: 'center', gap: '2px',
+                                                    background: activeUserPermNames.has(act.name) ? '#e0f2fe' : '#f1f5f9',
+                                                    border: '1px solid',
+                                                    borderColor: activeUserPermNames.has(act.name) ? '#bae6fd' : '#cbd5e1',
+                                                    padding: '1px 4px', borderRadius: '3px', fontSize: '0.65rem',
+                                                    color: activeUserPermNames.has(act.name) ? '#0369a1' : '#475569',
+                                                    cursor: 'pointer', userSelect: 'none'
+                                                  }}>
+                                                    <input
+                                                      type="checkbox"
+                                                      checked={activeUserPermNames.has(act.name)}
+                                                      disabled={!puedeGestionarPermisos}
+                                                      onChange={() => handleTogglePermission(act.name)}
+                                                      style={{ width: '10px', height: '10px', cursor: 'pointer' }}
+                                                    />
+                                                    {act.label}
+                                                  </label>
+                                                ))}
+                                              </div>
+                                            ) : (
+                                              <span style={{ color: '#ccc', fontSize: '0.7rem', fontStyle: 'italic' }}>-</span>
+                                            )}
+                                          </td>
+
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                ) : (
+                  <div style={{ padding: '2rem 1rem', textAlign: 'center', color: '#64748b', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #cbd5e1' }}>
+                    <strong style={{ display: 'block', fontSize: '0.85rem', color: '#1a3c6e', marginBottom: '0.25rem' }}>
+                      Matriz de Permisos Personalizados
+                    </strong>
+                    <p style={{ fontSize: '0.78rem', margin: 0, maxWidth: '280px', marginLeft: 'auto', marginRight: 'auto' }}>
+                      Seleccione un Rol en el menú superior para ver y personalizar los permisos específicos de este usuario en dicho perfil.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

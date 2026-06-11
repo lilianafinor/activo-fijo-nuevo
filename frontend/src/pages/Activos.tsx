@@ -1,10 +1,10 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
-import { GET_ACTIVOS, GET_CATALOGOS_ACTIVOS } from '../graphql/queries';
+import { GET_ACTIVOS_PAGINADOS, GET_CATALOGOS_ACTIVOS } from '../graphql/queries';
 import { CREAR_ACTIVO, EDITAR_ACTIVO, APROBAR_ACTIVO } from '../graphql/mutations';
 import PageLayout from '../components/ui/PageLayout';
+import { useAuth } from '../context/AuthContext';
 
-const permisos = ['ver_activos', 'crear_activo', 'eliminar_activo'];
 
 const GET_VEHICULO = gql`
   query GetVehiculo($nroActivo: Int!) {
@@ -169,8 +169,10 @@ const ITEMS_POR_PAGINA = 8;
 
 export default function Activos() {  
   // ==================== PERMISOS ====================
-  const puedeVer = permisos.includes('ver_activos');
-  const puedeCrear = permisos.includes('crear_activo');
+  const { user } = useAuth();
+  const puedeVer = user?.esAdmin || user?.permisos.includes('ver_activos');
+  const puedeCrear = user?.esAdmin || user?.permisos.includes('crear_activo');
+  const puedeEditar = user?.esAdmin || user?.permisos.includes('editar_activo');
 
   const [showModal, setShowModal] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
@@ -201,7 +203,13 @@ export default function Activos() {
   const [creandoLote, setCreandoLote] = useState(false);
   const [progresoLote, setProgresoLote] = useState({ actual: 0, total: 0 });
 
-  const { data, loading, error: queryError, refetch } = useQuery(GET_ACTIVOS);
+  const { data, loading, error: queryError, refetch } = useQuery(GET_ACTIVOS_PAGINADOS, {
+    variables: {
+      limit: ITEMS_POR_PAGINA,
+      offset: (paginaActual - 1) * ITEMS_POR_PAGINA,
+      search: busqueda.trim() || ""
+    }
+  });
   const { data: cats } = useQuery(GET_CATALOGOS_ACTIVOS);
   const [crearActivo] = useMutation(CREAR_ACTIVO);
   const [editarActivo] = useMutation(EDITAR_ACTIVO);
@@ -214,22 +222,11 @@ export default function Activos() {
   const esSimple = esGrupoSimple(grupoSelDes);
 
   // ==================== FILTROS Y PAGINACIÓN ====================
-  const activosFiltrados = useMemo(() => {
-    let lista = data?.todosActivos || [];
-    if (busqueda.trim()) {
-      const term = busqueda.toLowerCase();
-      lista = lista.filter((a: any) => 
-        a.codActivo?.toLowerCase().includes(term) || 
-        a.descripcion?.toLowerCase().includes(term) ||
-        a.nroSerie?.toLowerCase().includes(term)
-      );
-    }
-    return lista;
-  }, [data, busqueda]);
-
-  const totalPaginas = Math.ceil(activosFiltrados.length / ITEMS_POR_PAGINA);
+  const totalCount = data?.todosActivosPaginados?.totalCount || 0;
+  const totalPaginas = Math.ceil(totalCount / ITEMS_POR_PAGINA);
   const paginaActualSegura = Math.min(paginaActual, totalPaginas || 1);
-  const activosPaginados = activosFiltrados.slice((paginaActualSegura - 1) * ITEMS_POR_PAGINA, paginaActualSegura * ITEMS_POR_PAGINA);
+  const activosPaginados = data?.todosActivosPaginados?.results || [];
+
 
   // ==================== HANDLERS ====================
   const handleSelectGrupo = (g: any) => {
@@ -520,14 +517,14 @@ export default function Activos() {
           className="search-input"
           placeholder="Buscar por codigo, descripcion o serie..."
           value={busqueda}
-          onChange={e => setBusqueda(e.target.value)}
+          onChange={e => { setBusqueda(e.target.value); setPaginaActual(1); }}
           style={{ maxWidth: '400px' }}
         />
       }
       footer={
         totalPaginas > 1 ? (
           <div className="pagination">
-            <span>Pagina {paginaActualSegura} de {totalPaginas} ({activosFiltrados.length} registros)</span>
+            <span>Pagina {paginaActualSegura} de {totalPaginas} ({totalCount} registros)</span>
             <div className="pagination-controls">
               <button className="pagination-btn" onClick={() => setPaginaActual(p => Math.max(1, p - 1))} disabled={paginaActualSegura === 1}>&laquo; Anterior</button>
               <button className="pagination-btn" onClick={() => setPaginaActual(p => Math.min(totalPaginas, p + 1))} disabled={paginaActualSegura === totalPaginas}>Siguiente &raquo;</button>
@@ -618,29 +615,31 @@ export default function Activos() {
                         }}
                         onClick={e => e.stopPropagation()}
                       >
-                        <button
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            padding: '8px 12px',
-                            textAlign: 'left',
-                            fontSize: '0.8rem',
-                            color: '#334155',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px'
-                          }}
-                          onClick={() => {
-                            setOpenDropdownId(null);
-                            handleEdit(a);
-                          }}
-                          onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
-                          onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
-                        >
-                          ✏️ Editar
-                        </button>
-                        {a.estadoRegistro !== 'APROBADO' && (
+                        {puedeEditar && (
+                          <button
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              padding: '8px 12px',
+                              textAlign: 'left',
+                              fontSize: '0.8rem',
+                              color: '#334155',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px'
+                            }}
+                            onClick={() => {
+                              setOpenDropdownId(null);
+                              handleEdit(a);
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                            onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                          >
+                            ✏️ Editar
+                          </button>
+                        )}
+                        {puedeEditar && a.estadoRegistro !== 'APROBADO' && (
                           <button
                             style={{
                               background: 'none',
@@ -723,7 +722,7 @@ export default function Activos() {
       {/* Paginación */}
       {totalPaginas > 1 && (
         <div className="pagination">
-          <span>Página {paginaActualSegura} de {totalPaginas} — {activosFiltrados.length} registros</span>
+          <span>Página {paginaActualSegura} de {totalPaginas} — {totalCount} registros</span>
           <div className="pagination-controls">
             <button
               className="pagination-btn"

@@ -1,6 +1,7 @@
 import PageLayout from '../components/ui/PageLayout';
 import React, { useState } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
+import { useAuth } from '../context/AuthContext';
 
 // ==================== QUERIES & MUTATIONS ====================
 const GET_ADQUISICIONES_DATA = gql`
@@ -227,8 +228,21 @@ const ANULAR_ORDEN_COMPRA = gql`
 `;
 
 export default function Adquisiciones() {
+  const { user } = useAuth();
   const userEmail = localStorage.getItem('userEmail') || '';
   const [activeTab, setActiveTab] = useState<'solicitudes' | 'ofertas' | 'ordenes'>('solicitudes');
+
+  // Permisos granulares
+  const puedeVerOrdenes = user?.esAdmin || user?.permisos.includes('ver_ordenes');
+  const puedeVerFacturas = user?.esAdmin || user?.permisos.includes('ver_facturas');
+  const puedeVerGlobal = puedeVerOrdenes || puedeVerFacturas;
+
+  const puedeCrearOrden = user?.esAdmin || user?.permisos.includes('crear_orden');
+  const puedeAutorizarOrden = user?.esAdmin || user?.permisos.includes('autorizar_orden');
+  const puedeEliminarOrden = user?.esAdmin || user?.permisos.includes('eliminar_orden');
+
+  const puedeCrearFactura = user?.esAdmin || user?.permisos.includes('crear_factura');
+  const puedeEliminarFactura = user?.esAdmin || user?.permisos.includes('eliminar_factura');
 
   // Expanded rows
   const [expandedSol, setExpandedSol] = useState<number | null>(null);
@@ -285,8 +299,29 @@ export default function Adquisiciones() {
   const [crearOrdenCompra] = useMutation(CREAR_ORDEN_COMPRA);
   const [anularOrdenCompra] = useMutation(ANULAR_ORDEN_COMPRA);
 
+  // Redirección por defecto según permisos
+  React.useEffect(() => {
+    if (!puedeVerOrdenes && puedeVerFacturas) {
+      setActiveTab('ofertas');
+    }
+  }, [puedeVerOrdenes, puedeVerFacturas]);
+
   if (loading) return <div className="loading">Cargando datos de adquisiciones...</div>;
   if (error) return <div className="error">Error: {error.message}</div>;
+
+  if (!puedeVerGlobal) {
+    return (
+      <PageLayout
+        title="Acceso Restringido"
+        subtitle="No tiene los permisos necesarios para ver esta sección."
+      >
+        <div className="error-container" style={{ padding: '2rem', background: 'white', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.06)', textAlign: 'center', margin: '2rem auto', maxWidth: '600px' }}>
+          <h2 style={{ color: '#dc3545', marginBottom: '1rem' }}>Acceso Denegado</h2>
+          <p style={{ color: '#666' }}>Se requiere el permiso de ver órdenes o facturas para ingresar al módulo de adquisiciones.</p>
+        </div>
+      </PageLayout>
+    );
+  }
 
   // Resolve current user's employee and their responsable record
   const currentUsrObj = data?.todosUsuarios?.find((u: any) => u.correo === userEmail);
@@ -550,69 +585,83 @@ export default function Adquisiciones() {
     }
   };
 
+  const pageActions = [];
+  let showNewButton = false;
+  if (activeTab === 'solicitudes' && puedeCrearOrden) showNewButton = true;
+  if (activeTab === 'ofertas' && puedeCrearFactura) showNewButton = true;
+  if (activeTab === 'ordenes' && puedeCrearOrden) showNewButton = true;
+
+  if (showNewButton) {
+    pageActions.push({
+      label: activeTab === 'solicitudes' ? 'Nueva Solicitud' : activeTab === 'ofertas' ? 'Nueva Oferta' : 'Generar Orden',
+      icon: '+',
+      variant: 'primary' as const,
+      onClick: () => {
+        if (activeTab === 'solicitudes') handleOpenSolModal();
+        else if (activeTab === 'ofertas') setShowOferModal(true);
+        else setShowOrdenModal(true);
+      }
+    });
+  }
+  pageActions.push({ label: 'Actualizar', icon: '↺', onClick: () => refetch() });
+
   return (
     <PageLayout
       title="Portal de Adquisiciones"
-      actions={[
-        {
-          label: activeTab === 'solicitudes' ? 'Nueva Solicitud' : activeTab === 'ofertas' ? 'Nueva Oferta' : 'Generar Orden',
-          icon: '+',
-          variant: 'primary' as const,
-          onClick: () => {
-            if (activeTab === 'solicitudes') handleOpenSolModal();
-            else if (activeTab === 'ofertas') setShowOferModal(true);
-            else setShowOrdenModal(true);
-          }
-        },
-        { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
-      ]}
+      actions={pageActions}
     >
 
 
       {/* Tabs Menu */}
       <div style={{ display: 'flex', borderBottom: '1px solid #cbd5e1', marginBottom: '1.5rem', gap: '0.5rem' }}>
-        <button
-          onClick={() => setActiveTab('solicitudes')}
-          style={{
-            padding: '0.6rem 1.25rem',
-            border: 'none',
-            borderBottom: activeTab === 'solicitudes' ? '3px solid #3b82f6' : '3px solid transparent',
-            background: 'none',
-            fontWeight: activeTab === 'solicitudes' ? '700' : '500',
-            color: activeTab === 'solicitudes' ? '#3b82f6' : '#64748b',
-            cursor: 'pointer'
-          }}
-        >
-          📋 Solicitudes (Requisiciones)
-        </button>
-        <button
-          onClick={() => setActiveTab('ofertas')}
-          style={{
-            padding: '0.6rem 1.25rem',
-            border: 'none',
-            borderBottom: activeTab === 'ofertas' ? '3px solid #10b981' : '3px solid transparent',
-            background: 'none',
-            fontWeight: activeTab === 'ofertas' ? '700' : '500',
-            color: activeTab === 'ofertas' ? '#10b981' : '#64748b',
-            cursor: 'pointer'
-          }}
-        >
-          🏷️ Ofertas / Cotizaciones
-        </button>
-        <button
-          onClick={() => setActiveTab('ordenes')}
-          style={{
-            padding: '0.6rem 1.25rem',
-            border: 'none',
-            borderBottom: activeTab === 'ordenes' ? '3px solid #1a3c6e' : '3px solid transparent',
-            background: 'none',
-            fontWeight: activeTab === 'ordenes' ? '700' : '500',
-            color: activeTab === 'ordenes' ? '#1a3c6e' : '#64748b',
-            cursor: 'pointer'
-          }}
-        >
-          📑 Órdenes de Compra
-        </button>
+        {puedeVerOrdenes && (
+          <button
+            onClick={() => setActiveTab('solicitudes')}
+            style={{
+              padding: '0.6rem 1.25rem',
+              border: 'none',
+              borderBottom: activeTab === 'solicitudes' ? '3px solid #3b82f6' : '3px solid transparent',
+              background: 'none',
+              fontWeight: activeTab === 'solicitudes' ? '700' : '500',
+              color: activeTab === 'solicitudes' ? '#3b82f6' : '#64748b',
+              cursor: 'pointer'
+            }}
+          >
+            Solicitudes (Requisiciones)
+          </button>
+        )}
+        {puedeVerFacturas && (
+          <button
+            onClick={() => setActiveTab('ofertas')}
+            style={{
+              padding: '0.6rem 1.25rem',
+              border: 'none',
+              borderBottom: activeTab === 'ofertas' ? '3px solid #10b981' : '3px solid transparent',
+              background: 'none',
+              fontWeight: activeTab === 'ofertas' ? '700' : '500',
+              color: activeTab === 'ofertas' ? '#10b981' : '#64748b',
+              cursor: 'pointer'
+            }}
+          >
+            Ofertas / Cotizaciones
+          </button>
+        )}
+        {puedeVerOrdenes && (
+          <button
+            onClick={() => setActiveTab('ordenes')}
+            style={{
+              padding: '0.6rem 1.25rem',
+              border: 'none',
+              borderBottom: activeTab === 'ordenes' ? '3px solid #1a3c6e' : '3px solid transparent',
+              background: 'none',
+              fontWeight: activeTab === 'ordenes' ? '700' : '500',
+              color: activeTab === 'ordenes' ? '#1a3c6e' : '#64748b',
+              cursor: 'pointer'
+            }}
+          >
+            Órdenes de Compra
+          </button>
+        )}
       </div>
 
       {/* TAB CONTENT: SOLICITUDES */}
@@ -652,32 +701,32 @@ export default function Adquisiciones() {
                       <td>{s.empResp ? `${s.empResp.codEmp.nombre} ${s.empResp.codEmp.apellido}` : '-'}</td>
                       <td>{s.fecha}</td>
                       <td>
-                        {s.aB === 'A' && <span className="badge" style={{ background: '#f59e0b', color: 'white' }}>⏳ Pendiente</span>}
-                        {s.aB === 'P' && <span className="badge badge-success">✅ Aprobada</span>}
-                        {s.aB === 'R' && <span className="badge badge-danger">❌ Rechazada</span>}
+                        {s.aB === 'A' && <span className="badge" style={{ background: '#f59e0b', color: 'white' }}>Pendiente</span>}
+                        {s.aB === 'P' && <span className="badge badge-success">Aprobada</span>}
+                        {s.aB === 'R' && <span className="badge badge-danger">Rechazada</span>}
                         {s.aB === 'B' && <span className="badge" style={{ background: '#94a3b8', color: 'white' }}>Anulada</span>}
                       </td>
                       <td onClick={e => e.stopPropagation()}>
                         <div className="btn-group">
-                          <button className="btn btn-info btn-sm" onClick={() => setExpandedSol(isExpanded ? null : s.nroSol)}>
+                           <button className="btn btn-info btn-sm" onClick={() => setExpandedSol(isExpanded ? null : s.nroSol)}>
                             {isExpanded ? 'Ocultar' : 'Ver Detalle'}
                           </button>
                           {/* Aprobador puede Aprobar o Rechazar solicitudes pendientes */}
-                          {s.aB === 'A' && s.empResp?.codResp === myResponsable?.codResp && (
+                          {s.aB === 'A' && s.empResp?.codResp === myResponsable?.codResp && puedeAutorizarOrden && (
                             <>
                               <button
                                 className="btn btn-success btn-sm"
                                 onClick={() => handleAprobarSolicitud(s.nroSol)}
                                 title="Aprobar solicitud"
                               >
-                                ✅ Aprobar
+                                Aprobar
                               </button>
                               <button
                                 className="btn btn-warning btn-sm"
                                 onClick={() => handleRechazarSolicitud(s.nroSol)}
                                 title="Rechazar solicitud"
                               >
-                                ❌ Rechazar
+                                Rechazar
                               </button>
                             </>
                           )}
@@ -686,7 +735,7 @@ export default function Adquisiciones() {
                               Pendiente de {s.empResp?.codEmp?.nombre}
                             </span>
                           )}
-                          {s.aB === 'A' && (
+                          {s.aB === 'A' && puedeEliminarOrden && (
                             <button className="btn btn-danger btn-sm" onClick={() => handleAnularSolicitud(s.nroSol)}>
                               Anular
                             </button>
@@ -755,7 +804,7 @@ export default function Adquisiciones() {
                           <button className="btn btn-info btn-sm" onClick={() => setExpandedOfer(isExpanded ? null : o.nroOferta)}>
                             {isExpanded ? 'Ocultar Detalle' : 'Ver Detalle'}
                           </button>
-                          {o.estado === 'P' && (
+                          {o.estado === 'P' && puedeEliminarFactura && (
                             <button className="btn btn-danger btn-sm" onClick={() => handleAnularOferta(o.nroOferta)}>
                               Anular
                             </button>
@@ -814,7 +863,7 @@ export default function Adquisiciones() {
                     </span>
                   </td>
                   <td>
-                    {o.aB === 'A' && (
+                    {o.aB === 'A' && puedeEliminarOrden && (
                       <button className="btn btn-danger btn-sm" onClick={() => handleAnularOrden(o.nroCompra)}>
                         Anular
                       </button>

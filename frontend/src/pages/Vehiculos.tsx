@@ -1,48 +1,63 @@
 import PageLayout from '../components/ui/PageLayout';
 import React, { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
+import { useAuth } from '../context/AuthContext';
+
 
 // ==================== QUERIES & MUTATIONS ====================
 const GET_VEHICULOS_AND_ACTIVOS = gql`
-  query GetVehiculosAndActivos {
-    todosVehiculos {
-      nroActivo {
-        nroActivo
-        codActivo
-        descripcion
-        monto
-        fecAdqui
-        nroSerie
+  query GetVehiculosAndActivos($limit: Int, $offset: Int, $search: String) {
+    todosVehiculosPaginados(limit: $limit, offset: $offset, search: $search) {
+      totalCount
+      results {
+        nroActivo {
+          nroActivo
+          codActivo
+          descripcion
+          monto
+          fecAdqui
+          nroSerie
+        }
+        tipo
+        marca
+        modelo
+        anio
+        color
+        placa
+        motor
+        chasis
+        cilindrada
+        industria
+        ruat
+        carnetProp
+        poliza
+        factura
+        resMin
+        resAdm
+        infTec
+        leyEstado
+        ds
+        docTransf
+        docCompVen
+        minuta
+        actaCoVe
+        imagen
       }
-      tipo
-      marca
-      modelo
-      anio
-      color
-      placa
-      motor
-      chasis
-      cilindrada
-      industria
-      ruat
-      carnetProp
-      poliza
-      factura
-      resMin
-      resAdm
-      infTec
-      leyEstado
-      ds
-      docTransf
-      docCompVen
-      minuta
-      actaCoVe
-      imagen
     }
     todosActivos {
       nroActivo
       codActivo
       descripcion
+      nroSerie
+      fecAdqui
+      codMarca {
+        codMarca
+        desMarca
+      }
+      codModelo {
+        codModelo
+        desModelo
+      }
     }
   }
 `;
@@ -75,10 +90,23 @@ const GUARDAR_VEHICULO = gql`
 `;
 
 export default function Vehiculos() {
-  const { data, loading, error, refetch } = useQuery(GET_VEHICULOS_AND_ACTIVOS);
-  const [guardarVehiculo] = useMutation(GUARDAR_VEHICULO);
+  const { user } = useAuth();
+  const puedeCrear = user?.esAdmin || user?.permisos.includes('crear_vehiculo');
+  const puedeEditar = user?.esAdmin || user?.permisos.includes('editar_vehiculo');
 
   const [busqueda, setBusqueda] = useState('');
+  const [paginaActual, setPaginaActual] = useState(1);
+  const ITEMS_POR_PAGINA = 15;
+
+  const { data, loading, error, refetch } = useQuery(GET_VEHICULOS_AND_ACTIVOS, {
+    variables: {
+      limit: ITEMS_POR_PAGINA,
+      offset: (paginaActual - 1) * ITEMS_POR_PAGINA,
+      search: busqueda.trim() || ""
+    }
+  });
+  const [guardarVehiculo] = useMutation(GUARDAR_VEHICULO);
+
   const [tipoFiltro, setTipoFiltro] = useState('');
   const [marcaFiltro, setMarcaFiltro] = useState('');
   
@@ -87,7 +115,7 @@ export default function Vehiculos() {
   const [editingVehiculo, setEditingVehiculo] = useState<any>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [printTarget, setPrintTarget] = useState<any>(null);
-  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+  const [showTutorial, setShowTutorial] = useState(false);
 
   // Form state for editing/creating
   const [form, setForm] = useState<any>({
@@ -123,28 +151,18 @@ export default function Vehiculos() {
 
   // Extract unique types and brands for filter dropdowns
   const uniqueTypes = useMemo<string[]>(() => {
-    const list = data?.todosVehiculos?.map((v: any) => v.tipo).filter(Boolean) || [];
+    const list = data?.todosVehiculosPaginados?.results?.map((v: any) => v.tipo).filter(Boolean) || [];
     return Array.from(new Set(list)) as string[];
   }, [data]);
 
   const uniqueBrands = useMemo<string[]>(() => {
-    const list = data?.todosVehiculos?.map((v: any) => v.marca).filter(Boolean) || [];
+    const list = data?.todosVehiculosPaginados?.results?.map((v: any) => v.marca).filter(Boolean) || [];
     return Array.from(new Set(list)) as string[];
   }, [data]);
 
   // Filter vehicles
   const filteredVehiculos = useMemo(() => {
-    let list = data?.todosVehiculos || [];
-    if (busqueda.trim()) {
-      const term = busqueda.toLowerCase();
-      list = list.filter((v: any) => 
-        v.placa?.toLowerCase().includes(term) ||
-        v.marca?.toLowerCase().includes(term) ||
-        v.modelo?.toLowerCase().includes(term) ||
-        v.nroActivo?.codActivo?.toLowerCase().includes(term) ||
-        v.nroActivo?.descripcion?.toLowerCase().includes(term)
-      );
-    }
+    let list = data?.todosVehiculosPaginados?.results || [];
     if (tipoFiltro) {
       list = list.filter((v: any) => v.tipo === tipoFiltro);
     }
@@ -152,14 +170,35 @@ export default function Vehiculos() {
       list = list.filter((v: any) => v.marca === marcaFiltro);
     }
     return list;
-  }, [data, busqueda, tipoFiltro, marcaFiltro]);
+  }, [data, tipoFiltro, marcaFiltro]);
+
+  const totalCount = data?.todosVehiculosPaginados?.totalCount || 0;
+  const totalPaginas = Math.ceil(totalCount / ITEMS_POR_PAGINA);
+  const paginaActualSegura = Math.min(paginaActual, totalPaginas || 1);
 
   // Get assets that do not have a vehicle file yet
   const availableAssets = useMemo(() => {
     const all = data?.todosActivos || [];
-    const usedIds = new Set(data?.todosVehiculos?.map((v: any) => v.nroActivo?.nroActivo) || []);
+    const usedIds = new Set(data?.todosVehiculosPaginados?.results?.map((v: any) => v.nroActivo?.nroActivo) || []);
     return all.filter((a: any) => !usedIds.has(a.nroActivo));
   }, [data]);
+
+  // Auto-fill values from the selected asset
+  useEffect(() => {
+    if (isCreating && form.nroActivo) {
+      const allActivos = data?.todosActivos || [];
+      const asset = allActivos.find((a: any) => String(a.nroActivo) === String(form.nroActivo));
+      if (asset) {
+        setForm((prev: any) => ({
+          ...prev,
+          marca: prev.marca || asset.codMarca?.desMarca || '',
+          modelo: prev.modelo || asset.codModelo?.desModelo || '',
+          chasis: prev.chasis || asset.nroSerie || '',
+          anio: prev.anio || (asset.fecAdqui ? new Date(asset.fecAdqui).getFullYear().toString() : '')
+        }));
+      }
+    }
+  }, [form.nroActivo, isCreating, data]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -356,12 +395,6 @@ export default function Vehiculos() {
     }
   }, [printTarget]);
 
-  useEffect(() => {
-    const closeDropdown = () => setOpenDropdownId(null);
-    window.addEventListener('click', closeDropdown);
-    return () => window.removeEventListener('click', closeDropdown);
-  }, []);
-
   if (loading) return <div className="loading">Cargando flota de vehículos...</div>;
   if (error) return <div className="error">Error: {error.message}</div>;
 
@@ -371,7 +404,7 @@ export default function Vehiculos() {
     <PageLayout
       title="Flota de Vehículos"
       actions={[
-        { label: 'Registrar Ficha', icon: '+', variant: 'primary' as const, onClick: handleCreateClick },
+        ...(puedeCrear ? [{ label: 'Registrar Ficha', icon: '+', variant: 'primary' as const, onClick: handleCreateClick }] : []),
         { label: 'Exportar CSV', icon: '↓', onClick: handleExportCSV },
         { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
       ]}
@@ -384,7 +417,7 @@ export default function Vehiculos() {
               className="search-input"
               placeholder="Buscar por placa, marca, modelo..."
               value={busqueda}
-              onChange={e => setBusqueda(e.target.value)}
+              onChange={e => { setBusqueda(e.target.value); setPaginaActual(1); }}
               style={{ width: '220px' }}
             />
           </div>
@@ -474,7 +507,7 @@ export default function Vehiculos() {
                   <th style={{ width: '120px' }}>Año / Color</th>
                   <th style={{ width: '150px' }}>Chasis / Motor</th>
                   <th style={{ width: '110px' }}>RUAT</th>
-                  <th style={{ width: '100px', textAlign: 'center' }}>Acciones</th>
+                  <th style={{ width: '160px', textAlign: 'center' }}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
@@ -514,43 +547,57 @@ export default function Vehiculos() {
                       M: {v.motor || '-'}
                     </td>
                     <td style={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>{v.ruat || '-'}</td>
-                    <td style={{ textAlign: 'center', position: 'relative' }}>
-                      <div className="action-dropdown-wrapper">
+                    <td style={{ textAlign: 'center' }}>
+                      <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
                         <button
                           className="btn btn-secondary btn-sm"
                           style={{ padding: '3px 6px', fontSize: '0.75rem' }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setOpenDropdownId(openDropdownId === String(v.nroActivo?.nroActivo) ? null : String(v.nroActivo?.nroActivo));
-                          }}
+                          onClick={() => setSelectedVehiculo(v)}
+                          title="Ver Ficha Técnica"
                         >
-                          Acciones ▾
+                          Ver
                         </button>
-                        {openDropdownId === String(v.nroActivo?.nroActivo) && (
-                          <ul className="action-dropdown-menu" style={{ textAlign: 'left' }}>
-                            <li>
-                              <button onClick={() => { setOpenDropdownId(null); setSelectedVehiculo(v); }}>
-                                Ver Ficha
-                              </button>
-                            </li>
-                            <li>
-                              <button onClick={() => { setOpenDropdownId(null); handleEditClick(v); }}>
-                                Editar Ficha
-                              </button>
-                            </li>
-                            <li>
-                              <button onClick={() => { setOpenDropdownId(null); handlePrint(v); }}>
-                                Imprimir Ficha
-                              </button>
-                            </li>
-                          </ul>
+                        {puedeEditar && (
+                          <button
+                            className="btn btn-warning btn-sm"
+                            style={{ padding: '3px 6px', fontSize: '0.75rem' }}
+                            onClick={() => handleEditClick(v)}
+                            title="Editar Ficha"
+                          >
+                            Editar
+                          </button>
                         )}
+                        <button
+                          className="btn btn-primary btn-sm"
+                          style={{ padding: '3px 6px', fontSize: '0.75rem' }}
+                          onClick={() => handlePrint(v)}
+                          title="Imprimir Ficha"
+                        >
+                          Imp.
+                        </button>
                       </div>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+        {totalPaginas > 1 && (
+          <div className="pagination" style={{ marginTop: '1rem' }}>
+            <span>Página {paginaActualSegura} de {totalPaginas} — {totalCount} registros</span>
+            <div className="pagination-controls">
+              <button
+                className="pagination-btn"
+                onClick={() => setPaginaActual(p => Math.max(1, p - 1))}
+                disabled={paginaActualSegura === 1}
+              >Anterior</button>
+              <button
+                className="pagination-btn"
+                onClick={() => setPaginaActual(p => Math.min(totalPaginas, p + 1))}
+                disabled={paginaActualSegura === totalPaginas}
+              >Siguiente</button>
+            </div>
           </div>
         )}
       </div>
@@ -598,6 +645,44 @@ export default function Vehiculos() {
 
             <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', maxHeight: '70vh', overflowY: 'auto' }}>
               
+              {/* Interactive Help Assistant Banner */}
+              <div style={{
+                background: 'var(--blue-pale)',
+                borderLeft: '4px solid var(--blue)',
+                padding: '10px 12px',
+                fontSize: '0.75rem',
+                lineHeight: '1.4',
+                marginBottom: '4px'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <strong style={{ color: 'var(--navy)', display: 'flex', alignItems: 'center', gap: '4px' }}>Asistente de Llenado Rápido</strong>
+                  <button 
+                    type="button"
+                    className="btn btn-secondary btn-sm" 
+                    style={{ padding: '2px 6px', fontSize: '0.65rem' }} 
+                    onClick={() => setShowTutorial(!showTutorial)}
+                  >
+                    {showTutorial ? 'Ocultar Guía' : 'Ver Guía / Ayuda'}
+                  </button>
+                </div>
+                {showTutorial && (
+                  <div style={{ marginTop: '8px', color: 'var(--text-secondary)' }}>
+                    <p style={{ marginBottom: '6px' }}>Siga estos sencillos pasos para registrar la ficha de vehículo rápidamente:</p>
+                    <ol style={{ paddingLeft: '16px', margin: 0, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <li>
+                        <strong>Auto-completado Inteligente:</strong> Al seleccionar un activo, el sistema <span style={{ color: '#006600', fontWeight: 'bold' }}>rellenará automáticamente</span> la marca, modelo, chasis (según número de serie del activo) y año de adquisición si el activo tiene dichos datos.
+                      </li>
+                      <li>
+                        <strong>Solo 1 campo obligatorio:</strong> Únicamente es necesario relacionar el Activo Fijo. Se recomienda ingresar la Placa para facilitar las búsquedas.
+                      </li>
+                      <li>
+                        <strong>Evite campos innecesarios:</strong> Todos los demás campos de especificaciones y documentación legal están marcados con <span style={{ color: 'var(--text-muted)', fontWeight: 'bold' }}>(Opcional)</span>. Si no los tiene a mano, puede dejarlos en blanco y guardarlo. Podrá editarlos en cualquier momento.
+                      </li>
+                    </ol>
+                  </div>
+                )}
+              </div>
+
               {/* Asset Selector (Only on Creation) */}
               <div className="form-group">
                 <label>Activo Fijo Relacionado *</label>
@@ -625,7 +710,7 @@ export default function Vehiculos() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1rem' }}>
                 {/* Image and Upload */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'center', background: 'var(--bg-panel)', padding: '8px', border: '1px solid var(--border-light)' }}>
-                  <span style={{ fontSize: '0.7rem', color: 'var(--text-label)', fontWeight: 700, textTransform: 'uppercase' }}>Fotografía</span>
+                  <span style={{ fontSize: '0.7rem', color: 'var(--text-label)', fontWeight: 700, textTransform: 'uppercase' }}>Fotografía <span style={{ color: 'var(--text-muted)', fontWeight: 'normal' }}>(Opcional)</span></span>
                   <div style={{ width: '100%', height: '120px', background: 'var(--bg-white)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px dashed var(--border)', position: 'relative' }}>
                     {form.imagen ? (
                       <img 
@@ -657,27 +742,27 @@ export default function Vehiculos() {
                 {/* Grid of Main Fields */}
                 <div className="form-grid">
                   <div className="form-group">
-                    <label>Tipo de Vehículo</label>
+                    <label>Tipo de Vehículo <span style={{ color: 'var(--text-muted)', fontWeight: 'normal', fontSize: '0.7rem' }}>(Opcional)</span></label>
                     <input type="text" name="tipo" value={form.tipo} onChange={handleChange} placeholder="Ej: Camioneta, Sedan" />
                   </div>
                   <div className="form-group">
-                    <label>Placa</label>
+                    <label>Placa <span style={{ color: 'var(--text-muted)', fontWeight: 'normal', fontSize: '0.7rem' }}>(Opcional)</span></label>
                     <input type="text" name="placa" value={form.placa} onChange={handleChange} placeholder="Ej: 1234ABC" />
                   </div>
                   <div className="form-group">
-                    <label>Marca</label>
+                    <label>Marca <span style={{ color: 'var(--text-muted)', fontWeight: 'normal', fontSize: '0.7rem' }}>(Opcional)</span></label>
                     <input type="text" name="marca" value={form.marca} onChange={handleChange} placeholder="Ej: Toyota" />
                   </div>
                   <div className="form-group">
-                    <label>Modelo</label>
+                    <label>Modelo <span style={{ color: 'var(--text-muted)', fontWeight: 'normal', fontSize: '0.7rem' }}>(Opcional)</span></label>
                     <input type="text" name="modelo" value={form.modelo} onChange={handleChange} placeholder="Ej: Hilux" />
                   </div>
                   <div className="form-group">
-                    <label>Año</label>
+                    <label>Año <span style={{ color: 'var(--text-muted)', fontWeight: 'normal', fontSize: '0.7rem' }}>(Opcional)</span></label>
                     <input type="number" name="anio" value={form.anio} onChange={handleChange} placeholder="Ej: 2020" />
                   </div>
                   <div className="form-group">
-                    <label>Color</label>
+                    <label>Color <span style={{ color: 'var(--text-muted)', fontWeight: 'normal', fontSize: '0.7rem' }}>(Opcional)</span></label>
                     <input type="text" name="color" value={form.color} onChange={handleChange} placeholder="Ej: Blanco" />
                   </div>
                 </div>
@@ -686,27 +771,27 @@ export default function Vehiculos() {
               <div className="section-bar" style={{ margin: '4px 0 2px 0' }}>Identificación y Mecánica</div>
               <div className="form-grid form-grid-3">
                 <div className="form-group">
-                  <label>Motor</label>
+                  <label>Motor <span style={{ color: 'var(--text-muted)', fontWeight: 'normal', fontSize: '0.7rem' }}>(Opcional)</span></label>
                   <input type="text" name="motor" value={form.motor} onChange={handleChange} placeholder="Nro de Motor" />
                 </div>
                 <div className="form-group">
-                  <label>Chasis</label>
+                  <label>Chasis <span style={{ color: 'var(--text-muted)', fontWeight: 'normal', fontSize: '0.7rem' }}>(Opcional)</span></label>
                   <input type="text" name="chasis" value={form.chasis} onChange={handleChange} placeholder="Nro de Chasis" />
                 </div>
                 <div className="form-group">
-                  <label>Cilindrada (cc)</label>
+                  <label>Cilindrada (cc) <span style={{ color: 'var(--text-muted)', fontWeight: 'normal', fontSize: '0.7rem' }}>(Opcional)</span></label>
                   <input type="number" name="cilindrada" value={form.cilindrada} onChange={handleChange} placeholder="Ej: 2400" />
                 </div>
                 <div className="form-group">
-                  <label>Industria</label>
+                  <label>Industria <span style={{ color: 'var(--text-muted)', fontWeight: 'normal', fontSize: '0.7rem' }}>(Opcional)</span></label>
                   <input type="text" name="industria" value={form.industria} onChange={handleChange} placeholder="Ej: Japón" />
                 </div>
                 <div className="form-group">
-                  <label>RUAT</label>
+                  <label>RUAT <span style={{ color: 'var(--text-muted)', fontWeight: 'normal', fontSize: '0.7rem' }}>(Opcional)</span></label>
                   <input type="text" name="ruat" value={form.ruat} onChange={handleChange} placeholder="Nro RUAT" />
                 </div>
                 <div className="form-group">
-                  <label>Carnet Propietario</label>
+                  <label>Carnet Propietario <span style={{ color: 'var(--text-muted)', fontWeight: 'normal', fontSize: '0.7rem' }}>(Opcional)</span></label>
                   <input type="text" name="carnetProp" value={form.carnetProp} onChange={handleChange} placeholder="Nro CRP" />
                 </div>
               </div>
@@ -714,47 +799,47 @@ export default function Vehiculos() {
               <div className="section-bar" style={{ margin: '4px 0 2px 0' }}>Documentación y Resoluciones</div>
               <div className="form-grid form-grid-3">
                 <div className="form-group">
-                  <label>Póliza</label>
+                  <label>Póliza <span style={{ color: 'var(--text-muted)', fontWeight: 'normal', fontSize: '0.7rem' }}>(Opcional)</span></label>
                   <input type="text" name="poliza" value={form.poliza} onChange={handleChange} placeholder="Nro de Póliza" />
                 </div>
                 <div className="form-group">
-                  <label>Factura</label>
+                  <label>Factura <span style={{ color: 'var(--text-muted)', fontWeight: 'normal', fontSize: '0.7rem' }}>(Opcional)</span></label>
                   <input type="number" name="factura" value={form.factura} onChange={handleChange} placeholder="Nro de Factura" />
                 </div>
                 <div className="form-group">
-                  <label>Res. Ministerial</label>
+                  <label>Res. Ministerial <span style={{ color: 'var(--text-muted)', fontWeight: 'normal', fontSize: '0.7rem' }}>(Opcional)</span></label>
                   <input type="text" name="resMin" value={form.resMin} onChange={handleChange} placeholder="Resolución Min." />
                 </div>
                 <div className="form-group">
-                  <label>Res. Administrativa</label>
+                  <label>Res. Administrativa <span style={{ color: 'var(--text-muted)', fontWeight: 'normal', fontSize: '0.7rem' }}>(Opcional)</span></label>
                   <input type="text" name="resAdm" value={form.resAdm} onChange={handleChange} placeholder="Resolución Adm." />
                 </div>
                 <div className="form-group">
-                  <label>Informe Técnico</label>
+                  <label>Informe Técnico <span style={{ color: 'var(--text-muted)', fontWeight: 'normal', fontSize: '0.7rem' }}>(Opcional)</span></label>
                   <input type="text" name="infTec" value={form.infTec} onChange={handleChange} placeholder="Informe Técnico" />
                 </div>
                 <div className="form-group">
-                  <label>Ley del Estado</label>
+                  <label>Ley del Estado <span style={{ color: 'var(--text-muted)', fontWeight: 'normal', fontSize: '0.7rem' }}>(Opcional)</span></label>
                   <input type="text" name="leyEstado" value={form.leyEstado} onChange={handleChange} placeholder="Ley del Estado" />
                 </div>
                 <div className="form-group">
-                  <label>D.S. (Decreto Supremo)</label>
+                  <label>D.S. (Decreto Supremo) <span style={{ color: 'var(--text-muted)', fontWeight: 'normal', fontSize: '0.7rem' }}>(Opcional)</span></label>
                   <input type="text" name="ds" value={form.ds} onChange={handleChange} placeholder="Decreto Supremo" />
                 </div>
                 <div className="form-group">
-                  <label>Doc. Transferencia</label>
+                  <label>Doc. Transferencia <span style={{ color: 'var(--text-muted)', fontWeight: 'normal', fontSize: '0.7rem' }}>(Opcional)</span></label>
                   <input type="text" name="docTransf" value={form.docTransf} onChange={handleChange} placeholder="Doc. Transferencia" />
                 </div>
                 <div className="form-group">
-                  <label>Minuta</label>
+                  <label>Minuta <span style={{ color: 'var(--text-muted)', fontWeight: 'normal', fontSize: '0.7rem' }}>(Opcional)</span></label>
                   <input type="text" name="minuta" value={form.minuta} onChange={handleChange} placeholder="Minuta de Compra/Venta" />
                 </div>
                 <div className="form-group">
-                  <label>Doc. Compra Venta</label>
+                  <label>Doc. Compra Venta <span style={{ color: 'var(--text-muted)', fontWeight: 'normal', fontSize: '0.7rem' }}>(Opcional)</span></label>
                   <input type="text" name="docCompVen" value={form.docCompVen} onChange={handleChange} placeholder="Doc. Compra/Venta" />
                 </div>
                 <div className="form-group" style={{ gridColumn: 'span 2' }}>
-                  <label>Acta Compra Venta</label>
+                  <label>Acta Compra Venta <span style={{ color: 'var(--text-muted)', fontWeight: 'normal', fontSize: '0.7rem' }}>(Opcional)</span></label>
                   <input type="text" name="actaCoVe" value={form.actaCoVe} onChange={handleChange} placeholder="Acta de Compra/Venta" />
                 </div>
               </div>

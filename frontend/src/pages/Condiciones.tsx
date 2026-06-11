@@ -1,6 +1,7 @@
 import PageLayout from '../components/ui/PageLayout';
 import React, { useState } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
+import { useAuth } from '../context/AuthContext';
 
 const GET_CONDICIONES = gql`
   query {
@@ -34,6 +35,10 @@ const EDITAR_CONDICION = gql`
 `;
 
 export default function Condiciones() {
+  const { user } = useAuth();
+  const puedeCrear = user?.esAdmin || user?.permisos.includes('crear_condicion_activo');
+  const puedeEditar = user?.esAdmin || user?.permisos.includes('editar_condicion_activo');
+
   const [showModal, setShowModal] = useState(false);
   const [editando, setEditando] = useState<any>(null);
   const [form, setForm] = useState({ codCond: '', desCond: '' });
@@ -94,10 +99,14 @@ export default function Condiciones() {
   return (
     <PageLayout
       title="Condiciones de Activos"
-      actions={[
-        { label: 'Nuevo', icon: '+', variant: 'primary' as const, onClick: abrirNuevo },
-        { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
-      ]}
+      actions={
+        puedeCrear ? [
+          { label: 'Nuevo', icon: '+', variant: 'primary' as const, onClick: abrirNuevo },
+          { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
+        ] : [
+          { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
+        ]
+      }
     >
 
 
@@ -125,11 +134,13 @@ export default function Condiciones() {
                 </td>
                 <td>{c.desCond}</td>
                 <td>
-                  <div className="btn-group">
-                    <button className="btn btn-warning btn-sm" onClick={() => abrirEditar(c)}>
-                      Editar
-                    </button>
-                  </div>
+                  {puedeEditar && (
+                    <div className="btn-group">
+                      <button className="btn btn-warning btn-sm" onClick={() => abrirEditar(c)}>
+                        Editar
+                      </button>
+                    </div>
+                  )}
                 </td>
               </tr>
             ))}

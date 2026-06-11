@@ -12,6 +12,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   login: (token: string, email: string, permisos?: string[], esAdmin?: boolean) => void;
   logout: () => void;
+  updatePermisos: (permisos: string[], esAdmin: boolean) => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -19,6 +20,7 @@ const AuthContext = createContext<AuthContextType>({
   isAuthenticated: false,
   login: () => {},
   logout: () => {},
+  updatePermisos: () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -47,8 +49,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   }, []);
 
+  const updatePermisos = useCallback((permisos: string[], esAdmin: boolean) => {
+    localStorage.setItem('permisos', JSON.stringify(permisos));
+    localStorage.setItem('esAdmin', String(esAdmin));
+    setUser(prev => prev ? { ...prev, permisos, esAdmin } : null);
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, logout }}>
+    <AuthContext.Provider value={{ user, isAuthenticated: !!user, login, logout, updatePermisos }}>
       {children}
     </AuthContext.Provider>
   );

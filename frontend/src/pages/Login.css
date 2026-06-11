@@ -1,4 +1,4 @@
-/* Premium Glassmorphic Login Styles */
+/* UAGRM Presencial Login Styles */
 
 .login-page {
   position: fixed;
@@ -8,312 +8,207 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #090d16;
+  background-image: url('https://presencial.uagrm.edu.bo/pluginfile.php/1/theme_boost/loginbackgroundimage/1781140413/imagen%20virtual%20%28slider%29%20%281280%20x%20853%20px%29.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   overflow: hidden;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   z-index: 9999;
 }
 
-/* Background animated spheres */
-.login-bg-sphere {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(120px);
-  z-index: 1;
-  opacity: 0.45;
-  pointer-events: none;
-}
-
-.sphere-1 {
-  width: 400px;
-  height: 400px;
-  background: radial-gradient(circle, #3b82f6 0%, transparent 70%);
-  top: -10%;
-  left: 10%;
-  animation: float-slow 15s infinite alternate ease-in-out;
-}
-
-.sphere-2 {
-  width: 500px;
-  height: 500px;
-  background: radial-gradient(circle, #8b5cf6 0%, transparent 70%);
-  bottom: -15%;
-  right: 10%;
-  animation: float-slow-reverse 20s infinite alternate ease-in-out;
-}
-
-.sphere-3 {
-  width: 300px;
-  height: 300px;
-  background: radial-gradient(circle, #06b6d4 0%, transparent 70%);
-  top: 40%;
-  right: 20%;
-  animation: float-medium 12s infinite alternate ease-in-out;
-}
-
-@keyframes float-slow {
-  0% { transform: translate(0, 0) scale(1); }
-  100% { transform: translate(60px, 40px) scale(1.15); }
-}
-
-@keyframes float-slow-reverse {
-  0% { transform: translate(0, 0) scale(1.1); }
-  100% { transform: translate(-80px, -50px) scale(0.9); }
-}
-
-@keyframes float-medium {
-  0% { transform: translate(0, 0) scale(0.95); }
-  100% { transform: translate(-40px, 60px) scale(1.05); }
-}
-
-/* Login Card Container */
+/* Centered UAGRM Login Card */
 .login-card {
   position: relative;
   z-index: 10;
   width: 100%;
-  max-width: 440px;
-  padding: 3rem 2.5rem;
-  background: rgba(15, 23, 42, 0.45);
-  backdrop-filter: blur(24px) saturate(160%);
-  -webkit-backdrop-filter: blur(24px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 24px;
-  box-shadow: 
-    0 4px 30px rgba(0, 0, 0, 0.4),
-    0 1px 0 rgba(255, 255, 255, 0.1) inset;
-  color: #f8fafc;
+  max-width: 380px;
+  background: #ffffff;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
   display: flex;
   flex-direction: column;
-  gap: 1.75rem;
-  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  padding: 30px;
+  margin: 16px;
+  transition: all 0.2s ease;
 }
 
-.login-card:hover {
-  border-color: rgba(255, 255, 255, 0.12);
-  box-shadow: 
-    0 10px 40px rgba(0, 0, 0, 0.5),
-    0 1px 0 rgba(255, 255, 255, 0.15) inset;
-}
-
-/* Header */
-.login-header {
-  text-align: center;
+/* Logo container matching UAGRM */
+.login-logo-container {
   display: flex;
-  flex-direction: column;
+  justify-content: center;
   align-items: center;
-  gap: 0.5rem;
+  margin-bottom: 25px;
+  width: 100%;
 }
 
-.login-logo {
-  font-size: 3rem;
-  margin-bottom: 0.5rem;
-  filter: drop-shadow(0 0 12px rgba(59, 130, 246, 0.3));
-  animation: pulse-glow 3s infinite alternate ease-in-out;
-}
-
-@keyframes pulse-glow {
-  0% { transform: scale(1); filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.3)); }
-  100% { transform: scale(1.05); filter: drop-shadow(0 0 20px rgba(59, 130, 246, 0.6)); }
-}
-
-.login-header h1 {
-  font-size: 1.75rem;
-  font-weight: 800;
-  letter-spacing: -0.025em;
-  background: linear-gradient(135deg, #ffffff 30%, #94a3b8 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  margin: 0;
-}
-
-.login-header p {
-  font-size: 0.875rem;
-  color: #94a3b8;
-  margin: 0;
+.login-logo-img {
+  max-width: 100%;
+  max-height: 80px;
+  object-fit: contain;
 }
 
 /* Forms */
 .login-form {
   display: flex;
   flex-direction: column;
-  gap: 1.25rem;
+  gap: 15px;
 }
 
 .input-wrapper {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 6px;
 }
 
 .input-label {
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #94a3b8;
+  color: #495057;
 }
 
 .input-field-container {
   position: relative;
   display: flex;
   align-items: center;
+  width: 100%;
 }
 
-.input-icon {
-  position: absolute;
-  left: 1rem;
-  color: #64748b;
-  font-size: 1.1rem;
-  pointer-events: none;
-  transition: color 0.2s;
-}
-
+/* UAGRM Inputs styled like Bootstrap form-control */
 .login-input {
   width: 100%;
-  padding: 0.875rem 1rem 0.875rem 2.75rem;
-  background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  color: #f8fafc;
+  height: 44px;
+  padding: 10px 14px;
+  background: #ffffff;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  color: #495057;
   font-size: 0.95rem;
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  line-height: 1.5;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
 }
 
 .login-input:focus {
   outline: none;
-  border-color: #3b82f6;
-  background: rgba(15, 23, 42, 0.8);
-  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
+  border-color: #0f6fc5;
+  background: #ffffff;
+  box-shadow: 0 0 0 0.2rem rgba(15, 111, 197, 0.25);
 }
 
-.login-input:focus + .input-icon {
-  color: #3b82f6;
+.login-input::placeholder {
+  color: #6c757d;
+  opacity: 0.8;
 }
 
-/* Captcha section */
+/* Captcha section styled cleanly */
 .captcha-container {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px dashed rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  padding: 0.75rem 1rem;
+  gap: 10px;
+  background: #f8f9fa;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  padding: 8px 12px;
+  width: 100%;
 }
 
 .captcha-challenge {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
-  border: 1px solid rgba(59, 130, 246, 0.2);
-  padding: 0.5rem 0.75rem;
-  border-radius: 8px;
+  background: #e9ecef;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  padding: 6px 12px;
   font-weight: 700;
-  font-size: 1.1rem;
-  color: #3b82f6;
-  letter-spacing: 0.1em;
+  font-size: 1rem;
+  color: #0f6fc5;
+  letter-spacing: 1px;
   user-select: none;
   font-family: monospace;
 }
 
 .captcha-input {
   flex: 1;
-  padding: 0.5rem 0.75rem;
-  background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 8px;
-  color: white;
-  font-size: 1rem;
+  height: 38px;
+  padding: 6px 8px;
+  background: #ffffff;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  color: #495057;
+  font-size: 0.9rem;
   text-align: center;
   outline: none;
-  transition: all 0.2s;
+  transition: border-color 0.15s ease-in-out;
 }
 
 .captcha-input:focus {
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  border-color: #0f6fc5;
+  box-shadow: 0 0 0 0.2rem rgba(15, 111, 197, 0.15);
 }
 
-/* Button with gradient and glow */
+/* UAGRM Presencial Button (btn-primary) */
 .login-btn {
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 50%, #1d4ed8 100%);
-  color: white;
-  border: none;
-  padding: 1rem;
-  border-radius: 12px;
-  font-weight: 600;
+  background-color: #0f6fc5;
+  color: #ffffff;
+  border: 1px solid #0f6fc5;
+  height: 44px;
+  font-weight: 500;
   font-size: 1rem;
+  border-radius: 4px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
-  box-shadow: 0 4px 15px rgba(37, 99, 235, 0.3);
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  position: relative;
-  overflow: hidden;
-}
-
-.login-btn::after {
-  content: '';
-  position: absolute;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: linear-gradient(
-    to bottom right,
-    rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0.13) 77%,
-    rgba(255, 255, 255, 0.5) 92%,
-    rgba(255, 255, 255, 0) 100%
-  );
-  transform: rotate(30deg);
-  transition: transform 0.8s ease;
-  pointer-events: none;
+  gap: 8px;
+  transition: color 0.15s ease-in-out, background-color 0.15s ease-in-out, border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+  width: 100%;
 }
 
 .login-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(37, 99, 235, 0.45);
+  background-color: #0d5ca5;
+  border-color: #0c569a;
 }
 
-.login-btn:active {
-  transform: translateY(1px);
+.login-btn:focus {
+  box-shadow: 0 0 0 0.2rem rgba(15, 111, 197, 0.5);
 }
 
 .login-btn:disabled {
-  background: #334155;
-  box-shadow: none;
+  background-color: #cccccc;
+  border-color: #cccccc;
+  color: #ffffff;
   cursor: not-allowed;
-  opacity: 0.7;
+  opacity: 0.8;
 }
 
 /* Shake Animation for Errors */
 .shake-animation {
-  animation: shake 0.5s ease-in-out;
+  animation: shake 0.4s ease-in-out;
 }
 
 @keyframes shake {
   0%, 100% { transform: translateX(0); }
-  10%, 30%, 50%, 70%, 90% { transform: translateX(-6px); }
-  20%, 40%, 60%, 80% { transform: translateX(6px); }
+  20%, 60% { transform: translateX(-4px); }
+  40%, 80% { transform: translateX(4px); }
 }
 
-/* Alert badge */
+/* UAGRM Bootstrap alert-danger badge */
 .error-badge {
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.2);
-  color: #f87171;
-  padding: 0.75rem 1rem;
-  border-radius: 12px;
-  font-size: 0.875rem;
+  background-color: #f8d7da;
+  border: 1px solid #f5c6cb;
+  color: #721c24;
+  padding: 10px 14px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  border-radius: 4px;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  animation: fade-in 0.3s ease;
+  gap: 6px;
+  margin-bottom: 12px;
+  animation: fade-in 0.2s ease;
 }
 
 @keyframes fade-in {
-  from { opacity: 0; transform: translateY(-8px); }
+  from { opacity: 0; transform: translateY(-4px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
@@ -321,63 +216,64 @@
 .otp-container {
   display: flex;
   justify-content: space-between;
-  gap: 0.5rem;
-  margin: 1rem 0;
+  gap: 8px;
+  margin: 10px 0;
+  width: 100%;
 }
 
 .otp-box {
-  width: 50px;
-  height: 60px;
-  background: rgba(15, 23, 42, 0.6);
-  border: 2px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  color: white;
-  font-size: 1.5rem;
+  width: 44px;
+  height: 52px;
+  background: #ffffff;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  color: #495057;
+  font-size: 1.3rem;
   font-weight: 700;
   text-align: center;
   outline: none;
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
 }
 
 .otp-box:focus {
-  border-color: #8b5cf6;
-  box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.25);
-  background: rgba(15, 23, 42, 0.8);
+  border-color: #0f6fc5;
+  background: #ffffff;
+  box-shadow: 0 0 0 0.2rem rgba(15, 111, 197, 0.25);
 }
 
 .otp-box.filled {
-  border-color: #3b82f6;
+  border-color: #0f6fc5;
 }
 
 /* Back button */
 .back-link {
-  font-size: 0.875rem;
-  color: #94a3b8;
+  font-size: 0.82rem;
+  color: #0f6fc5;
   background: none;
   border: none;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.25rem;
-  transition: color 0.2s;
-  padding: 0.5rem;
+  gap: 4px;
+  transition: color 0.15s;
+  padding: 6px;
+  font-weight: 500;
+  text-decoration: none;
+  margin-top: 10px;
 }
 
 .back-link:hover {
-  color: #f8fafc;
+  color: #0d5ca5;
+  text-decoration: underline;
 }
 
 /* Spinner */
 .spinner {
-  width: 20px;
-  height: 20px;
-  border: 3px solid rgba(255, 255, 255, 0.3);
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
   border-radius: 50%;
   border-top-color: white;
   animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
 }

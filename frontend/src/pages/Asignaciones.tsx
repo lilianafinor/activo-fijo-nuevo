@@ -1,46 +1,8 @@
 import PageLayout from '../components/ui/PageLayout';
 import React, { useState, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
-
-// ==================== QUERIES & MUTATIONS ====================
-const GET_ASIGNACIONES = gql`
-  query GetAsignaciones {
-    todasAsignaciones {
-      codAsig
-      fechaAsig
-      fechaFin
-      estado
-      tipoResp
-      codResp
-      tipoAsig { tipoAsig des }
-      codOfic {
-        codOfic
-        codDpto
-        desDpto
-        nivel
-        codPadre {
-          codOfic
-          codDpto
-          nivel
-          codPadre {
-            codOfic
-            codDpto
-            nivel
-          }
-        }
-      }
-      inDetAsigSet {
-        cantidad
-        fechaTrans
-        nroActivo {
-          nroActivo
-          codActivo
-          descripcion
-        }
-      }
-    }
-  }
-`;
+import { useAuth } from '../context/AuthContext';
+import { GET_ASIGNACIONES_PAGINADAS } from '../graphql/queries';
 
 const GET_CATS = gql`
   query GetCats {
@@ -153,6 +115,10 @@ function getOfficeFullCode(ofic: any): string {
 const ITEMS_POR_PAGINA = 8;
 
 export default function Asignaciones() {
+  const { user } = useAuth();
+  const puedeCrear = user?.esAdmin || user?.permisos.includes('crear_asignacion');
+  const puedeAnular = user?.esAdmin || user?.permisos.includes('eliminar_asignacion');
+
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({
     tipoAsig: '',
@@ -189,7 +155,13 @@ export default function Asignaciones() {
   const [showTiposModal, setShowTiposModal] = useState(false);
   const [formTipoAsig, setFormTipoAsig] = useState({ tipoAsig: '', des: '', abrev: '' });
 
-  const { data, loading, error, refetch } = useQuery(GET_ASIGNACIONES);
+  const { data, loading, error, refetch } = useQuery(GET_ASIGNACIONES_PAGINADAS, {
+    variables: {
+      limit: ITEMS_POR_PAGINA,
+      offset: (paginaActual - 1) * ITEMS_POR_PAGINA,
+      search: oficinaFilterObj ? String(oficinaFilterObj.codOfic) : ""
+    }
+  });
   const { data: cats, refetch: refetchCats } = useQuery(GET_CATS);
   const [crearAsig] = useMutation(CREAR_ASIG);
   const [asignarActivo] = useMutation(ASIGNAR_ACTIVO);
@@ -197,20 +169,22 @@ export default function Asignaciones() {
   const [crearTipoAsig] = useMutation(CREAR_TIPO_ASIG);
 
   // ==================== FILTERING & PAGINATION ====================
-  const asignacionesFiltradas = useMemo(() => {
-    let list = data?.todasAsignaciones || [];
-    if (oficinaFilterObj) {
-      list = list.filter((a: any) => String(a.codOfic?.codOfic) === String(oficinaFilterObj.codOfic));
-    }
-    return list;
-  }, [data, oficinaFilterObj]);
-
-  const totalPaginas = Math.ceil(asignacionesFiltradas.length / ITEMS_POR_PAGINA);
+  const totalCount = data?.todasAsignacionesPaginadas?.totalCount || 0;
+  const totalPaginas = Math.ceil(totalCount / ITEMS_POR_PAGINA);
   const paginaActualSegura = Math.min(paginaActual, totalPaginas || 1);
-  const asignacionesPaginadas = asignacionesFiltradas.slice(
-    (paginaActualSegura - 1) * ITEMS_POR_PAGINA,
-    paginaActualSegura * ITEMS_POR_PAGINA
-  );
+  const asignacionesPaginadas = useMemo(() => data?.todasAsignacionesPaginadas?.results || [], [data]);
+
+  const groupedAsignaciones = useMemo(() => {
+    const groups: { [key: string]: any[] } = {};
+    asignacionesPaginadas.forEach((a: any) => {
+      const officeId = a.codOfic?.codOfic ? String(a.codOfic.codOfic) : 'sin-oficina';
+      if (!groups[officeId]) {
+        groups[officeId] = [];
+      }
+      groups[officeId].push(a);
+    });
+    return groups;
+  }, [asignacionesPaginadas]);
 
   // ==================== AUTOCOMPLETE HANDLERS ====================
   // 1. Office Filter Autocomplete
@@ -446,24 +420,13 @@ export default function Asignaciones() {
     <PageLayout
       title="Asignación de Activos"
       actions={[
-        { label: 'Asignación Masiva', icon: '+', variant: 'primary' as const, onClick: abrirNuevo },
-        { label: 'Tipos de Asignación', icon: '▤', onClick: () => { setFormTipoAsig({ tipoAsig: '', des: '', abrev: '' }); setShowTiposModal(true); } },
+        ...(puedeCrear ? [
+          { label: 'Asignación Masiva', icon: '+', variant: 'primary' as const, onClick: abrirNuevo },
+          { label: 'Tipos de Asignación', icon: '▤', onClick: () => { setFormTipoAsig({ tipoAsig: '', des: '', abrev: '' }); setShowTiposModal(true); } }
+        ] : []),
         { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
       ]}
     >
-      {/* Header */}
-      <div className="page-header flex justify-between items-center mb-6">
-        <h1 className="page-title text-2xl font-bold text-white">📌 Asignación de Activos</h1>
-        <div className="flex gap-2">
-          <button className="btn btn-primary" onClick={abrirNuevo}>
-            + Nueva Asignación Masiva
-          </button>
-          <button className="btn btn-success" onClick={() => { setFormTipoAsig({ tipoAsig: '', des: '', abrev: '' }); setShowTiposModal(true); }}>
-            + Tipos de Asignación
-          </button>
-        </div>
-      </div>
-
       {/* Filtros */}
       <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-3 mb-6">
         <div className="flex items-center gap-3">
@@ -509,74 +472,110 @@ export default function Asignaciones() {
         </div>
       </div>
 
-      {/* Tabla */}
-      <div className="bg-slate-800 rounded-xl border border-slate-700 overflow-x-auto shadow-xl">
-        <table className="w-full text-left">
-          <thead className="bg-slate-700 border-b border-slate-600">
-            <tr>
-              <th className="px-4 py-3 text-slate-300 text-sm font-semibold">Nro</th>
-              <th className="px-4 py-3 text-slate-300 text-sm font-semibold">Oficina</th>
-              <th className="px-4 py-3 text-slate-300 text-sm font-semibold">Responsable</th>
-              <th className="px-4 py-3 text-slate-300 text-sm font-semibold">Tipo</th>
-              <th className="px-4 py-3 text-slate-300 text-sm font-semibold">Fecha Asig</th>
-              <th className="px-4 py-3 text-slate-300 text-sm font-semibold">Activos Asignados</th>
-              <th className="px-4 py-3 text-slate-300 text-sm font-semibold">Estado</th>
-              <th className="px-4 py-3 text-slate-300 text-sm font-semibold">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {asignacionesPaginadas.length === 0 && (
-              <tr>
-                <td colSpan={8} className="px-4 py-12 text-center text-slate-500">
-                  No hay asignaciones registradas
-                </td>
-              </tr>
-            )}
-            {asignacionesPaginadas.map((a: any) => {
-              const resp = cats?.todosResponsables?.find((r: any) => String(r.codResp) === String(a.codResp));
-              return (
-                <tr key={a.codAsig} className="border-b border-slate-700 hover:bg-slate-750 transition">
-                  <td className="px-4 py-3 font-mono text-blue-400 text-sm">#{a.codAsig}</td>
-                  <td className="px-4 py-3 text-slate-300 text-sm">
-                    {a.codOfic ? `[${getOfficeUnifiedCode(a.codOfic)}] ${a.codOfic.desDpto}` : '-'}
-                  </td>
-                  <td className="px-4 py-3 text-slate-300 text-sm">
-                    {resp ? `[${resp.codEstprog}] ${resp.codEmp.nombre} ${resp.codEmp.apellido}` : `ID: ${a.codResp}`}
-                  </td>
-                  <td className="px-4 py-3 text-slate-300 text-sm">{a.tipoAsig?.des || '-'}</td>
-                  <td className="px-4 py-3 text-slate-300 text-sm">{a.fechaAsig || '-'}</td>
-                  <td className="px-4 py-3 text-slate-300 text-xs max-w-xs">
-                    <div className="flex flex-col gap-1">
-                      {a.inDetAsigSet?.map((d: any) => (
-                        <div key={d.nroActivo.nroActivo} className="bg-slate-700/50 px-2 py-0.5 rounded border border-slate-600/30 font-mono">
-                          <span className="text-blue-300">[{d.nroActivo.codActivo}]</span> {d.nroActivo.descripcion}
-                        </div>
-                      ))}
-                      {(!a.inDetAsigSet || a.inDetAsigSet.length === 0) && '-'}
+      {/* Listado agrupado por Oficina */}
+      <div className="space-y-6">
+        {asignacionesPaginadas.length === 0 ? (
+          <div className="bg-slate-800 rounded-xl border border-slate-700 p-12 text-center text-slate-500 shadow-xl">
+            No hay asignaciones registradas
+          </div>
+        ) : (
+          Object.entries(groupedAsignaciones).map(([oficinaId, list]) => {
+            const firstAsig = list[0];
+            const office = firstAsig.codOfic;
+            
+            // Build parent path recursively
+            const path: string[] = [];
+            let current = office;
+            while (current) {
+              if (current.desDpto) {
+                path.unshift(current.desDpto);
+              }
+              current = current.codPadre;
+            }
+            const unified = getOfficeUnifiedCode(office);
+
+            return (
+              <div key={oficinaId} className="bg-slate-800 rounded-xl border border-slate-700/60 overflow-hidden shadow-2xl transition-all duration-300 hover:shadow-blue-950/20 hover:border-slate-600/80">
+                {/* Barra de Oficina Super Premium */}
+                <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-blue-950/20 border-b border-slate-700/80 border-l-8 border-blue-500 px-6 py-4.5 text-white font-bold text-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-lg">
+                  <div className="flex items-center gap-4">
+                    <span className="text-2xl animate-pulse">🏢</span>
+                    <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4">
+                      <span className="text-xs tracking-widest uppercase bg-blue-600/90 text-blue-50 px-2.5 py-1 rounded border border-blue-400/30 font-extrabold font-mono w-max">
+                        Ubicación / Oficina
+                      </span>
+                      <span className="text-white text-lg md:text-xl font-extrabold tracking-wide drop-shadow-md">
+                        {office ? `[${unified || office.codOfic}] ${path.join(' > ')}` : 'Sin Oficina'}
+                      </span>
                     </div>
-                  </td>
-                  <td className="px-4 py-3 text-sm">
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
-                      a.estado === 'A' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-slate-500/10 text-slate-400'
-                    }`}>
-                      {a.estado === 'A' ? 'Activo' : 'Anulado'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    {a.estado === 'A' && (
-                      <button
-                        className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 px-2.5 py-1 rounded-lg text-xs font-medium transition"
-                        onClick={() => handleAnular(a.codAsig)}
-                      >
-                        Anular
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                  </div>
+                  <div className="flex items-center gap-2 bg-slate-900/90 border border-slate-700/50 px-3.5 py-1.5 rounded-lg text-xs font-bold text-slate-300 shadow-inner self-start sm:self-center shrink-0">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                    <span>{list.length} {list.length === 1 ? 'asignación' : 'asignaciones'}</span>
+                  </div>
+                </div>
+                
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead className="bg-slate-700/50 border-b border-slate-600">
+                      <tr>
+                        <th className="px-4 py-3 text-slate-300 text-xs font-semibold uppercase tracking-wider w-24">Nro</th>
+                        <th className="px-4 py-3 text-slate-300 text-xs font-semibold uppercase tracking-wider">Responsable</th>
+                        <th className="px-4 py-3 text-slate-300 text-xs font-semibold uppercase tracking-wider w-36">Tipo</th>
+                        <th className="px-4 py-3 text-slate-300 text-xs font-semibold uppercase tracking-wider w-36">Fecha Asig</th>
+                        <th className="px-4 py-3 text-slate-300 text-xs font-semibold uppercase tracking-wider">Activos Asignados</th>
+                        <th className="px-4 py-3 text-slate-300 text-xs font-semibold uppercase tracking-wider w-28">Estado</th>
+                        <th className="px-4 py-3 text-slate-300 text-xs font-semibold uppercase tracking-wider w-28 text-right">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {list.map((a: any) => {
+                        const resp = cats?.todosResponsables?.find((r: any) => String(r.codResp) === String(a.codResp));
+                        return (
+                          <tr key={a.codAsig} className="border-b border-slate-700 hover:bg-slate-700/30 transition">
+                            <td className="px-4 py-3 font-mono text-blue-400 text-sm">#{a.codAsig}</td>
+                            <td className="px-4 py-3 text-slate-300 text-sm">
+                              {resp ? `[${resp.codEstprog}] ${resp.codEmp.nombre} ${resp.codEmp.apellido}` : `ID: ${a.codResp}`}
+                            </td>
+                            <td className="px-4 py-3 text-slate-300 text-sm">{a.tipoAsig?.des || '-'}</td>
+                            <td className="px-4 py-3 text-slate-300 text-sm">{a.fechaAsig || '-'}</td>
+                            <td className="px-4 py-3 text-slate-300 text-xs">
+                              <div className="flex flex-col gap-1 max-w-md">
+                                {a.inDetAsigSet?.map((d: any) => (
+                                  <div key={d.nroActivo.nroActivo} className="bg-slate-700/50 px-2 py-0.5 rounded border border-slate-600/30 font-mono">
+                                    <span className="text-blue-300">[{d.nroActivo.codActivo}]</span> {d.nroActivo.descripcion}
+                                  </div>
+                                ))}
+                                {(!a.inDetAsigSet || a.inDetAsigSet.length === 0) && '-'}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-sm">
+                              <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                                a.estado === 'A' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-slate-500/10 text-slate-400 border border-slate-600/20'
+                              }`}>
+                                {a.estado === 'A' ? 'Activo' : 'Anulado'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              {puedeAnular && a.estado === 'A' && (
+                                <button
+                                  className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 px-2.5 py-1 rounded-lg text-xs font-medium transition"
+                                  onClick={() => handleAnular(a.codAsig)}
+                                >
+                                  Anular
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
 
       {/* Paginación */}

@@ -1,6 +1,7 @@
 import PageLayout from '../components/ui/PageLayout';
 import React, { useState } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
+import { useAuth } from '../context/AuthContext';
 
 const GET_ESTADOS = gql`
   query GetEstados {
@@ -34,6 +35,10 @@ const EDITAR_ESTADO = gql`
 `;
 
 export default function Estados() {
+  const { user } = useAuth();
+  const puedeCrear = user?.esAdmin || user?.permisos.includes('crear_estado_activo');
+  const puedeEditar = user?.esAdmin || user?.permisos.includes('editar_estado_activo');
+
   const [showModal, setShowModal] = useState(false);
   const [editando, setEditando] = useState<any>(null);
   const [form, setForm] = useState({ codEstado: '', desEstado: '' });
@@ -94,10 +99,14 @@ export default function Estados() {
   return (
     <PageLayout
       title="Estados de Activos"
-      actions={[
-        { label: 'Nuevo', icon: '+', variant: 'primary' as const, onClick: abrirNuevo },
-        { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
-      ]}
+      actions={
+        puedeCrear ? [
+          { label: 'Nuevo', icon: '+', variant: 'primary' as const, onClick: abrirNuevo },
+          { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
+        ] : [
+          { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
+        ]
+      }
     >
 
 
@@ -125,11 +134,13 @@ export default function Estados() {
                 </td>
                 <td>{e.desEstado}</td>
                 <td>
-                  <div className="btn-group">
-                    <button className="btn btn-warning btn-sm" onClick={() => abrirEditar(e)}>
-                      Editar
-                    </button>
-                  </div>
+                  {puedeEditar && (
+                    <div className="btn-group">
+                      <button className="btn btn-warning btn-sm" onClick={() => abrirEditar(e)}>
+                        Editar
+                      </button>
+                    </div>
+                  )}
                 </td>
               </tr>
             ))}

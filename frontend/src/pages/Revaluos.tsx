@@ -2,6 +2,7 @@ import PageLayout from '../components/ui/PageLayout';
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
 import { GET_REVALUOS, GET_CATALOGOS } from '../graphql/queries';
+import { useAuth } from '../context/AuthContext';
 import {
   CREAR_REVALUO,
   EDITAR_REVALUO,
@@ -30,6 +31,10 @@ const ESTADO_CLASS: Record<string, string> = {
 
 // ==================== COMPONENT ====================
 export default function Revaluos() {
+  const { user } = useAuth();
+  const puedeVer = user?.esAdmin || user?.permisos.includes('ver_reevaluos');
+  const puedeAutorizar = user?.esAdmin || user?.permisos.includes('autorizar_reevaluo');
+
   // Page states
   const [showModal, setShowModal] = useState(false);
   const [showDetModal, setShowDetModal] = useState(false);
@@ -317,22 +322,39 @@ export default function Revaluos() {
   if (loading) return <div className="loading">Cargando revalúos y depreciaciones...</div>;
   if (error) return <div className="error">Error: {error.message}</div>;
 
+  if (!puedeVer) {
+    return (
+      <PageLayout
+        title="Acceso Restringido"
+        subtitle="No tiene los permisos necesarios para ver esta sección."
+      >
+        <div className="error-container" style={{ padding: '2rem', background: 'white', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.06)', textAlign: 'center', margin: '2rem auto', maxWidth: '600px' }}>
+          <h2 style={{ color: '#dc3545', marginBottom: '1rem' }}>Acceso Denegado</h2>
+          <p style={{ color: '#666' }}>Se requiere el permiso de 'Ver Revalúos' para ingresar a este módulo.</p>
+        </div>
+      </PageLayout>
+    );
+  }
+
+  const pageActions = [];
+  if (puedeAutorizar) {
+    pageActions.push({
+      label: 'Nuevo',
+      icon: '+',
+      variant: 'primary' as const,
+      onClick: () => {
+        setFormRevaluo({ tipoReval: '1', documento: '', fechaIni: '' });
+        setSelectedFile(null);
+        setShowModal(true);
+      }
+    });
+  }
+  pageActions.push({ label: 'Actualizar', icon: '↺', onClick: () => refetch() });
+
   return (
     <PageLayout
       title="Revalúos y Depreciaciones"
-      actions={[
-        {
-          label: 'Nuevo',
-          icon: '+',
-          variant: 'primary' as const,
-          onClick: () => {
-            setFormRevaluo({ tipoReval: '1', documento: '', fechaIni: '' });
-            setSelectedFile(null);
-            setShowModal(true);
-          }
-        },
-        { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
-      ]}
+      actions={pageActions}
     >
 
 
@@ -398,12 +420,12 @@ export default function Revaluos() {
                           className="btn btn-secondary btn-sm"
                           style={{ textDecoration: 'none', padding: '2px 8px', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
                         >
-                          📄 Ver PDF
+                          Ver PDF
                         </a>
-                      ) : r.estado === 'A' ? (
+                      ) : r.estado === 'A' && puedeAutorizar ? (
                         <div style={{ position: 'relative', display: 'inline-block' }}>
                           <button className="btn btn-secondary btn-sm" style={{ padding: '2px 8px', fontSize: '0.75rem' }}>
-                            ⬆️ Subir PDF
+                            Subir PDF
                           </button>
                           <input
                             type="file"
@@ -432,7 +454,7 @@ export default function Revaluos() {
                           {isExpanded ? 'Ocultar Detalle' : 'Ver Activos'}
                         </button>
                         
-                        {r.estado === 'A' && (
+                        {r.estado === 'A' && puedeAutorizar && (
                           <>
                             <button
                               className="btn btn-success btn-sm"
@@ -477,7 +499,7 @@ export default function Revaluos() {
                     <tr>
                       <td colSpan={7} style={{ background: '#f8fafc', padding: '1.25rem 2rem' }}>
                         <div style={{ fontWeight: 600, fontSize: '0.85rem', color: '#1e293b', marginBottom: '0.6rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                          📋 Activos revalorizados en esta resolución
+                          Activos revalorizados en esta resolución
                         </div>
                         
                         {(!r.inDetRevalSet || r.inDetRevalSet.filter((d: any) => d.estado !== 'B').length === 0) ? (
@@ -495,7 +517,7 @@ export default function Revaluos() {
                                 <th style={{ padding: '0.6rem 1rem', fontSize: '0.78rem', color: '#475569', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>Diferencia</th>
                                 <th style={{ padding: '0.6rem 1rem', fontSize: '0.78rem', color: '#475569', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>Nueva Vida Útil</th>
                                 <th style={{ padding: '0.6rem 1rem', fontSize: '0.78rem', color: '#475569', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>Fecha</th>
-                                {r.estado === 'A' && <th style={{ padding: '0.6rem 1rem', fontSize: '0.78rem', color: '#475569', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>Acciones</th>}
+                                {r.estado === 'A' && puedeAutorizar && <th style={{ padding: '0.6rem 1rem', fontSize: '0.78rem', color: '#475569', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>Acciones</th>}
                               </tr>
                             </thead>
                             <tbody>
@@ -515,7 +537,7 @@ export default function Revaluos() {
                                     </td>
                                     <td style={{ padding: '0.6rem 1rem', fontSize: '0.82rem' }}>{det.vidaUtilAno}a {det.vidaUtilMes}m</td>
                                     <td style={{ padding: '0.6rem 1rem', fontSize: '0.82rem' }}>{det.fechaReval}</td>
-                                    {r.estado === 'A' && (
+                                    {r.estado === 'A' && puedeAutorizar && (
                                       <td style={{ padding: '0.6rem 1rem' }}>
                                         <button
                                           className="btn btn-danger btn-sm"
@@ -586,7 +608,7 @@ export default function Revaluos() {
                 />
                 {selectedFile && (
                   <div style={{ marginTop: '0.4rem', fontSize: '0.8rem', color: '#155724', background: '#d4edda', padding: '0.4rem 0.75rem', borderRadius: '6px' }}>
-                    📄 PDF Seleccionado: <strong>{selectedFile.name}</strong>
+                    PDF Seleccionado: <strong>{selectedFile.name}</strong>
                   </div>
                 )}
               </div>

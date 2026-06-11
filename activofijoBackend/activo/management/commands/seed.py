@@ -39,6 +39,9 @@ class Command(BaseCommand):
             # TRANSFERENCIAS
             'ver_transferencias',
 
+            # VEHÍCULOS
+            'ver_vehiculos', 'crear_vehiculo', 'editar_vehiculo', 'eliminar_vehiculo',
+
             # MANTENIMIENTOS
             'ver_mantenimientos', 'registrar_mantenimiento', 'editar_mantenimiento', 'eliminar_mantenimiento',
 
@@ -68,6 +71,20 @@ class Command(BaseCommand):
             'ver_industrias', 'crear_industria', 'editar_industria', 'eliminar_industria',
             # Unidad de Medida
             'ver_unidad_medida', 'crear_unidad_medida', 'editar_unidad_medida', 'eliminar_unidad_medida',
+
+            # CATÁLOGOS ADICIONALES
+            # Gestiones
+            'ver_gestiones', 'crear_gestion', 'editar_gestion', 'eliminar_gestion',
+            # Partes
+            'ver_partes', 'crear_parte', 'editar_parte', 'eliminar_parte',
+            # Atributos
+            'ver_atributos', 'crear_atributo', 'editar_atributo', 'eliminar_atributo',
+            # Tipos
+            'ver_tipos', 'crear_tipo', 'editar_tipo', 'eliminar_tipo',
+            # Materiales
+            'ver_materiales', 'crear_material', 'editar_material', 'eliminar_material',
+            # Funciones Adm.
+            'ver_funciones', 'crear_funcion', 'editar_funcion', 'eliminar_funcion',
 
             # PROVEEDORES
             'ver_proveedores', 'crear_proveedor', 'editar_proveedor', 'eliminar_proveedor',
@@ -166,6 +183,7 @@ class Command(BaseCommand):
             'ver_bajas', 'ver_motivos_baja', 'crear_motivo_baja', 'editar_motivo_baja', 'eliminar_motivo_baja',
             'ver_reevaluos', 'ver_tipos_reevaluo', 'crear_tipo_reevaluo', 'editar_tipo_reevaluo', 'eliminar_tipo_reevaluo',
             'ver_transferencias',
+            'ver_vehiculos', 'crear_vehiculo', 'editar_vehiculo',
             'ver_mantenimientos', 'registrar_mantenimiento', 'editar_mantenimiento',
             'ver_empleados', 'crear_empleado',
             'ver_usuarios',
@@ -179,6 +197,12 @@ class Command(BaseCommand):
             'ver_estado_activo', 'crear_estado_activo', 'editar_estado_activo',
             'ver_industrias', 'crear_industria', 'editar_industria',
             'ver_unidad_medida', 'crear_unidad_medida', 'editar_unidad_medida',
+            'ver_gestiones', 'crear_gestion', 'editar_gestion',
+            'ver_partes', 'crear_parte', 'editar_parte',
+            'ver_atributos', 'crear_atributo', 'editar_atributo',
+            'ver_tipos', 'crear_tipo', 'editar_tipo',
+            'ver_materiales', 'crear_material', 'editar_material',
+            'ver_funciones', 'crear_funcion', 'editar_funcion',
             'ver_proveedores', 'crear_proveedor', 'editar_proveedor',
             'ver_ordenes', 'crear_orden', 'autorizar_orden',
             'ver_facturas', 'crear_factura', 'editar_factura',
@@ -201,6 +225,7 @@ class Command(BaseCommand):
             'ver_bajas',
             'ver_reevaluos',
             'ver_transferencias',
+            'ver_vehiculos', 'crear_vehiculo', 'editar_vehiculo',
             'ver_mantenimientos', 'registrar_mantenimiento', 'editar_mantenimiento',
             'ver_empleados',
             'ver_marcas', 'crear_marca', 'editar_marca',
@@ -213,6 +238,12 @@ class Command(BaseCommand):
             'ver_estado_activo', 'crear_estado_activo', 'editar_estado_activo',
             'ver_industrias', 'crear_industria', 'editar_industria',
             'ver_unidad_medida', 'crear_unidad_medida', 'editar_unidad_medida',
+            'ver_gestiones', 'crear_gestion', 'editar_gestion',
+            'ver_partes', 'crear_parte', 'editar_parte',
+            'ver_atributos', 'crear_atributo', 'editar_atributo',
+            'ver_tipos', 'crear_tipo', 'editar_tipo',
+            'ver_materiales', 'crear_material', 'editar_material',
+            'ver_funciones', 'crear_funcion', 'editar_funcion',
             'ver_proveedores', 'crear_proveedor', 'editar_proveedor',
             'ver_ordenes', 'crear_orden',
             'ver_facturas', 'crear_factura', 'editar_factura',
@@ -229,11 +260,13 @@ class Command(BaseCommand):
             'ver_dashboard',
             'ver_activos', 'editar_activo',
             'ver_asignaciones', 'crear_asignacion', 'editar_asignacion',
+            'ver_vehiculos',
             'ver_mantenimientos', 'registrar_mantenimiento', 'editar_mantenimiento',
             'ver_empleados',
             'ver_marcas', 'ver_modelos', 'ver_categorias', 'ver_grupos',
             'ver_garantias', 'ver_tipo_cambio', 'ver_condicion_activo',
             'ver_estado_activo', 'ver_industrias', 'ver_unidad_medida',
+            'ver_gestiones', 'ver_partes', 'ver_atributos', 'ver_tipos', 'ver_materiales', 'ver_funciones',
             'ver_ubicaciones', 'ver_responsables', 'ver_depreciaciones',
         ])
         self.stdout.write(f'  Auxiliar: {c} permisos nuevos asignados')
@@ -248,9 +281,11 @@ class Command(BaseCommand):
         c = asignar_permisos(inventario_rol, [
             'ver_dashboard',
             'ver_activos', 'crear_activo', 'editar_activo',
+            'ver_vehiculos', 'crear_vehiculo', 'editar_vehiculo',
             'ver_marcas', 'ver_modelos', 'ver_categorias', 'ver_grupos',
             'ver_garantias', 'ver_tipo_cambio', 'ver_condicion_activo',
             'ver_estado_activo', 'ver_industrias', 'ver_unidad_medida',
+            'ver_gestiones', 'ver_partes', 'ver_atributos', 'ver_tipos', 'ver_materiales', 'ver_funciones',
             'ver_ubicaciones', 'crear_ubicacion', 'editar_ubicacion',
             'ver_responsables',
             'ver_depreciaciones', 'crear_depreciacion',

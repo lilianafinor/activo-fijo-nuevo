@@ -1,6 +1,7 @@
 import PageLayout from '../components/ui/PageLayout';
 import React, { useState } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
+import { useAuth } from '../context/AuthContext';
 
 const GET_MATERIALES = gql`
   query GetMateriales {
@@ -34,6 +35,10 @@ const EDITAR_MATERIAL = gql`
 `;
 
 export default function Materiales() {
+  const { user } = useAuth();
+  const puedeCrear = user?.esAdmin || user?.permisos.includes('crear_material');
+  const puedeEditar = user?.esAdmin || user?.permisos.includes('editar_material');
+
   const [showModal, setShowModal] = useState(false);
   const [editando, setEditando] = useState<any>(null);
   const [form, setForm] = useState({ tipoMat: '', desMat: '' });
@@ -94,10 +99,14 @@ export default function Materiales() {
   return (
     <PageLayout
       title="Tipos de Material"
-      actions={[
-        { label: 'Nuevo', icon: '+', variant: 'primary' as const, onClick: abrirNuevo },
-        { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
-      ]}
+      actions={
+        puedeCrear ? [
+          { label: 'Nuevo', icon: '+', variant: 'primary' as const, onClick: abrirNuevo },
+          { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
+        ] : [
+          { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
+        ]
+      }
     >
 
       <div className="table-container">
@@ -125,9 +134,11 @@ export default function Materiales() {
                 <td>{m.desMat}</td>
                 <td>
                   <div className="btn-group">
-                    <button className="btn btn-warning btn-sm" onClick={() => abrirEditar(m)}>
-                      Editar
-                    </button>
+                    {puedeEditar && (
+                      <button className="btn btn-warning btn-sm" onClick={() => abrirEditar(m)}>
+                        Editar
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>

@@ -1,6 +1,7 @@
 import PageLayout from '../components/ui/PageLayout';
 import React, { useState } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
+import { useAuth } from '../context/AuthContext';
 
 const GET_MARCAS = gql`query { todasMarcas { codMarca desMarca } }`;
 const GET_MODELOS = gql`query { todosModelos { codModelo desModelo codMarca { codMarca desMarca } } }`;
@@ -10,6 +11,12 @@ const ELIMINAR_MARCA = gql`mutation($codMarca: Int!) { eliminarMarca(codMarca: $
 const CREAR_MODELO = gql`mutation CrearModelo($codMarca: Int!, $desModelo: String!) { crearModelo(codMarca: $codMarca, desModelo: $desModelo) { modelo { codModelo desModelo } } }`;
 
 export default function Marcas() {
+  const { user } = useAuth();
+  const puedeCrearMarca = user?.esAdmin || user?.permisos.includes('crear_marca');
+  const puedeEditarMarca = user?.esAdmin || user?.permisos.includes('editar_marca');
+  const puedeEliminarMarca = user?.esAdmin || user?.permisos.includes('eliminar_marca');
+  const puedeCrearModelo = user?.esAdmin || user?.permisos.includes('crear_modelo');
+
   const [showMarcaModal, setShowMarcaModal] = useState(false);
   const [showModeloModal, setShowModeloModal] = useState(false);
   const [editandoMarca, setEditandoMarca] = useState<any>(null);
@@ -48,8 +55,8 @@ export default function Marcas() {
     <PageLayout
       title="Marcas y Modelos"
       actions={[
-        { label: 'Nueva Marca', icon: '+', variant: 'primary' as const, onClick: () => { setEditandoMarca(null); setFormMarca({ desMarca: '' }); setShowMarcaModal(true); } },
-        { label: 'Nuevo Modelo', icon: '+', onClick: () => setShowModeloModal(true) },
+        ...(puedeCrearMarca ? [{ label: 'Nueva Marca', icon: '+', variant: 'primary' as const, onClick: () => { setEditandoMarca(null); setFormMarca({ desMarca: '' }); setShowMarcaModal(true); } }] : []),
+        ...(puedeCrearModelo ? [{ label: 'Nuevo Modelo', icon: '+', onClick: () => setShowModeloModal(true) }] : []),
         { label: 'Actualizar', icon: '↺', onClick: () => { refetchMarcas(); refetchModelos(); } },
       ]}
     >
@@ -67,8 +74,8 @@ export default function Marcas() {
                 <td>{m.desMarca}</td>
                 <td>
                   <div className="btn-group">
-                    <button className="btn btn-warning btn-sm" onClick={() => { setEditandoMarca(m); setFormMarca({ desMarca: m.desMarca }); setShowMarcaModal(true); }}>Editar</button>
-                    <button className="btn btn-danger btn-sm" onClick={async () => { if (window.confirm('¿Eliminar?')) { await eliminarMarca({ variables: { codMarca: m.codMarca } }); refetchMarcas(); } }}>Eliminar</button>
+                    {puedeEditarMarca && <button className="btn btn-warning btn-sm" onClick={() => { setEditandoMarca(m); setFormMarca({ desMarca: m.desMarca }); setShowMarcaModal(true); }}>Editar</button>}
+                    {puedeEliminarMarca && <button className="btn btn-danger btn-sm" onClick={async () => { if (window.confirm('¿Eliminar?')) { await eliminarMarca({ variables: { codMarca: m.codMarca } }); refetchMarcas(); } }}>Eliminar</button>}
                   </div>
                 </td>
               </tr>

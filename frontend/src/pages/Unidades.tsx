@@ -1,6 +1,7 @@
 import PageLayout from '../components/ui/PageLayout';
 import React, { useState } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
+import { useAuth } from '../context/AuthContext';
 
 const GET_UNIDADES = gql`
   query {
@@ -37,6 +38,10 @@ const EDITAR_UNIDAD = gql`
 `;
 
 export default function Unidades() {
+  const { user } = useAuth();
+  const puedeCrear = user?.esAdmin || user?.permisos.includes('crear_unidad_medida');
+  const puedeEditar = user?.esAdmin || user?.permisos.includes('editar_unidad_medida');
+
   const [showModal, setShowModal] = useState(false);
   const [editando, setEditando] = useState<any>(null);
   const [form, setForm] = useState({ codUnidad: '', desUnidad: '', abrev: '' });
@@ -100,10 +105,14 @@ export default function Unidades() {
   return (
     <PageLayout
       title="Unidades de Medida"
-      actions={[
-        { label: 'Nuevo', icon: '+', variant: 'primary' as const, onClick: abrirNuevo },
-        { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
-      ]}
+      actions={
+        puedeCrear ? [
+          { label: 'Nuevo', icon: '+', variant: 'primary' as const, onClick: abrirNuevo },
+          { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
+        ] : [
+          { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
+        ]
+      }
     >
 
       <div className="table-container">
@@ -132,11 +141,13 @@ export default function Unidades() {
                 <td>{u.desUnidad}</td>
                 <td>{u.abrev || '-'}</td>
                 <td>
-                  <div className="btn-group">
-                    <button className="btn btn-warning btn-sm" onClick={() => abrirEditar(u)}>
-                      Editar
-                    </button>
-                  </div>
+                  {puedeEditar && (
+                    <div className="btn-group">
+                      <button className="btn btn-warning btn-sm" onClick={() => abrirEditar(u)}>
+                        Editar
+                      </button>
+                    </div>
+                  )}
                 </td>
               </tr>
             ))}

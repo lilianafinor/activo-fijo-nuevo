@@ -28,7 +28,11 @@ from .types import (
     InRolType, InPermisoType, InRolPermisoType, InEmpleadoType, InUsuarioType, InRolPermisoUsuarioType,
     InMotivoType, InBajaActType, InVehicType, InTasaRevType,
     InLogActivoType, InLogIngresoType, InLogAsignadoType, InLogDetAsigType,
-    InLogOficinaType, InLogDetRevalType, InLogBajaActType
+    InLogOficinaType, InLogDetRevalType, InLogBajaActType,
+    InActivoPaginatedType, InVehicPaginatedType, InAsignadoPaginatedType,
+    InLogActivoPaginatedType, InLogIngresoPaginatedType, InLogAsignadoPaginatedType,
+    InLogDetAsigPaginatedType, InLogOficinaPaginatedType, InLogDetRevalPaginatedType,
+    InLogBajaActPaginatedType
 )
 
 # ═══════════════════════════════════════════════════════════════
@@ -186,6 +190,80 @@ class Query(graphene.ObjectType):
     todos_logs_oficina      = graphene.List(InLogOficinaType)
     todos_logs_det_reval    = graphene.List(InLogDetRevalType)
     todos_logs_baja_act     = graphene.List(InLogBajaActType)
+
+    # ── Consultas paginadas para grandes volúmenes ──────────────
+    todos_activos_paginados = graphene.Field(
+        InActivoPaginatedType,
+        limit=graphene.Int(default_value=15),
+        offset=graphene.Int(default_value=0),
+        search=graphene.String(),
+        solo_activos=graphene.Boolean(default_value=True),
+        solo_aprobados=graphene.Boolean(default_value=False)
+    )
+
+    todos_vehiculos_paginados = graphene.Field(
+        InVehicPaginatedType,
+        limit=graphene.Int(default_value=15),
+        offset=graphene.Int(default_value=0),
+        search=graphene.String()
+    )
+
+    todas_asignaciones_paginadas = graphene.Field(
+        InAsignadoPaginatedType,
+        limit=graphene.Int(default_value=15),
+        offset=graphene.Int(default_value=0),
+        search=graphene.String(),
+        estado=graphene.String()
+    )
+
+    todos_logs_activos_paginados = graphene.Field(
+        InLogActivoPaginatedType,
+        limit=graphene.Int(default_value=15),
+        offset=graphene.Int(default_value=0),
+        search=graphene.String()
+    )
+
+    todos_logs_ingresos_paginados = graphene.Field(
+        InLogIngresoPaginatedType,
+        limit=graphene.Int(default_value=15),
+        offset=graphene.Int(default_value=0),
+        search=graphene.String()
+    )
+
+    todos_logs_asignados_paginados = graphene.Field(
+        InLogAsignadoPaginatedType,
+        limit=graphene.Int(default_value=15),
+        offset=graphene.Int(default_value=0),
+        search=graphene.String()
+    )
+
+    todos_logs_det_asig_paginados = graphene.Field(
+        InLogDetAsigPaginatedType,
+        limit=graphene.Int(default_value=15),
+        offset=graphene.Int(default_value=0),
+        search=graphene.String()
+    )
+
+    todos_logs_oficina_paginados = graphene.Field(
+        InLogOficinaPaginatedType,
+        limit=graphene.Int(default_value=15),
+        offset=graphene.Int(default_value=0),
+        search=graphene.String()
+    )
+
+    todos_logs_det_reval_paginados = graphene.Field(
+        InLogDetRevalPaginatedType,
+        limit=graphene.Int(default_value=15),
+        offset=graphene.Int(default_value=0),
+        search=graphene.String()
+    )
+
+    todos_logs_baja_act_paginados = graphene.Field(
+        InLogBajaActPaginatedType,
+        limit=graphene.Int(default_value=15),
+        offset=graphene.Int(default_value=0),
+        search=graphene.String()
+    )
 
     # ── Resolvers — Catálogos simples ───────────────────────────
     def resolve_todos_estados(root, info):
@@ -540,6 +618,140 @@ class Query(graphene.ObjectType):
 
     def resolve_todos_logs_baja_act(root, info):
         return in_log_baja_act.objects.all().order_by('-id')
+
+    # ── Resolvers de consultas paginadas ────────────────────────
+    def resolve_todos_activos_paginados(root, info, limit=15, offset=0, search=None, solo_activos=True, solo_aprobados=False):
+        qs = in_activo.objects.select_related(
+            'cod_gest', 'cod_grupo', 'cod_unidad', 'cod_marca',
+            'cod_modelo', 'cod_prove', 'cod_cond', 'cod_estado', 'nro_ingreso'
+        )
+        if solo_activos:
+            qs = qs.exclude(a_b='B')
+        if solo_aprobados:
+            qs = qs.filter(estado_registro='APROBADO')
+        if search:
+            from django.db.models import Q
+            q_obj = Q(descripcion__icontains=search) | Q(cod_activo__icontains=search) | Q(nro_serie__icontains=search)
+            if search.isdigit():
+                q_obj |= Q(nro_activo=int(search))
+            qs = qs.filter(q_obj)
+        total_count = qs.count()
+        results = qs.order_by('-nro_activo')[offset:offset+limit]
+        return InActivoPaginatedType(total_count=total_count, results=results)
+
+    def resolve_todos_vehiculos_paginados(root, info, limit=15, offset=0, search=None):
+        qs = in_vehic.objects.select_related('nro_activo')
+        if search:
+            from django.db.models import Q
+            q_obj = Q(placa__icontains=search) | Q(motor__icontains=search) | Q(chasis__icontains=search) | Q(nro_activo__descripcion__icontains=search) | Q(nro_activo__cod_activo__icontains=search)
+            if search.isdigit():
+                q_obj |= Q(nro_activo_id=int(search))
+            qs = qs.filter(q_obj)
+        total_count = qs.count()
+        results = qs.order_by('-nro_activo_id')[offset:offset+limit]
+        return InVehicPaginatedType(total_count=total_count, results=results)
+
+    def resolve_todas_asignaciones_paginadas(root, info, limit=15, offset=0, search=None, estado=None):
+        qs = in_asignado.objects.select_related('tipo_asig', 'cod_ofic')
+        if estado:
+            qs = qs.filter(estado=estado)
+        if search:
+            from django.db.models import Q
+            q_obj = Q(obs__icontains=search) | Q(cod_ofic__des_dpto__icontains=search)
+            if search.isdigit():
+                q_obj |= Q(cod_asig=int(search)) | Q(cod_resp=int(search)) | Q(cod_ofic=int(search))
+            qs = qs.filter(q_obj)
+        total_count = qs.count()
+        results = qs.order_by('-cod_asig')[offset:offset+limit]
+        return InAsignadoPaginatedType(total_count=total_count, results=results)
+
+    def resolve_todos_logs_activos_paginados(root, info, limit=15, offset=0, search=None):
+        qs = in_log_activo.objects.all()
+        if search:
+            from django.db.models import Q
+            q_obj = Q(cod_activo__icontains=search) | Q(descripcion__icontains=search) | Q(nro_serie__icontains=search)
+            if search.isdigit():
+                q_obj |= Q(nro_activo=int(search))
+            qs = qs.filter(q_obj)
+        total_count = qs.count()
+        results = qs.order_by('-id')[offset:offset+limit]
+        return InLogActivoPaginatedType(total_count=total_count, results=results)
+
+    def resolve_todos_logs_ingresos_paginados(root, info, limit=15, offset=0, search=None):
+        qs = in_log_ingreso.objects.all()
+        if search:
+            from django.db.models import Q
+            q_obj = Q(glosa__icontains=search)
+            if search.isdigit():
+                q_obj |= Q(nro_ingreso=int(search)) | Q(gestion=int(search))
+            qs = qs.filter(q_obj)
+        total_count = qs.count()
+        results = qs.order_by('-id')[offset:offset+limit]
+        return InLogIngresoPaginatedType(total_count=total_count, results=results)
+
+    def resolve_todos_logs_asignados_paginados(root, info, limit=15, offset=0, search=None):
+        qs = in_log_asignado.objects.all()
+        if search:
+            from django.db.models import Q
+            q_obj = Q(obs__icontains=search)
+            if search.isdigit():
+                q_obj |= Q(cod_asig=int(search)) | Q(cod_resp=int(search)) | Q(cod_ofic=int(search))
+            qs = qs.filter(q_obj)
+        total_count = qs.count()
+        results = qs.order_by('-id')[offset:offset+limit]
+        return InLogAsignadoPaginatedType(total_count=total_count, results=results)
+
+    def resolve_todos_logs_det_asig_paginados(root, info, limit=15, offset=0, search=None):
+        qs = in_log_det_asig.objects.all()
+        if search:
+            from django.db.models import Q
+            q_obj = Q()
+            if search.isdigit():
+                q_obj |= Q(cod_asig=int(search)) | Q(nro_activo=int(search))
+                qs = qs.filter(q_obj)
+            else:
+                pass
+        total_count = qs.count()
+        results = qs.order_by('-id')[offset:offset+limit]
+        return InLogDetAsigPaginatedType(total_count=total_count, results=results)
+
+    def resolve_todos_logs_oficina_paginados(root, info, limit=15, offset=0, search=None):
+        qs = in_log_oficina.objects.all()
+        if search:
+            from django.db.models import Q
+            q_obj = Q(cod_dpto__icontains=search) | Q(des_dpto__icontains=search)
+            if search.isdigit():
+                q_obj |= Q(cod_ofic=int(search))
+            qs = qs.filter(q_obj)
+        total_count = qs.count()
+        results = qs.order_by('-id')[offset:offset+limit]
+        return InLogOficinaPaginatedType(total_count=total_count, results=results)
+
+    def resolve_todos_logs_det_reval_paginados(root, info, limit=15, offset=0, search=None):
+        qs = in_log_det_reval.objects.all()
+        if search:
+            from django.db.models import Q
+            q_obj = Q()
+            if search.isdigit():
+                q_obj |= Q(cod_reval=int(search)) | Q(nro_activo=int(search))
+                qs = qs.filter(q_obj)
+            else:
+                pass
+        total_count = qs.count()
+        results = qs.order_by('-id')[offset:offset+limit]
+        return InLogDetRevalPaginatedType(total_count=total_count, results=results)
+
+    def resolve_todos_logs_baja_act_paginados(root, info, limit=15, offset=0, search=None):
+        qs = in_log_baja_act.objects.all()
+        if search:
+            from django.db.models import Q
+            q_obj = Q(observacion__icontains=search) | Q(documento__icontains=search)
+            if search.isdigit():
+                q_obj |= Q(nro=int(search)) | Q(cod_asig=int(search)) | Q(nro_activo=int(search))
+            qs = qs.filter(q_obj)
+        total_count = qs.count()
+        results = qs.order_by('-id')[offset:offset+limit]
+        return InLogBajaActPaginatedType(total_count=total_count, results=results)
 
 
 

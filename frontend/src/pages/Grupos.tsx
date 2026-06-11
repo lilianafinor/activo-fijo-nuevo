@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
 import { GET_GRUPOS } from '../graphql/queries';
 import { CREAR_GRUPO, EDITAR_GRUPO, ELIMINAR_GRUPO } from '../graphql/mutations';
+import { useAuth } from '../context/AuthContext';
 
 // Construir árbol desde lista plana
 const buildTree = (grupos: any[]) => {
@@ -34,6 +35,10 @@ const GrupoFila = ({
   onEditar: (g: any) => void;
   onEliminar: (id: number) => void;
 }) => {
+  const { user } = useAuth();
+  const puedeEditar = user?.esAdmin || user?.permisos.includes('editar_grupo');
+  const puedeEliminar = user?.esAdmin || user?.permisos.includes('eliminar_grupo');
+
   const sangria = ((grupo.nivel || 1) - 1) * 24;
   const prefijos = ['', '├─ ', '└── '];
   const prefijo = prefijos[Math.min((grupo.nivel || 1) - 1, 2)];
@@ -58,8 +63,8 @@ const GrupoFila = ({
         <td><span className={`badge ${grupo.aB === 'A' ? 'badge-success' : 'badge-danger'}`}>{grupo.aB === 'A' ? 'Activo' : 'Baja'}</span></td>
         <td>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button className="btn btn-secondary btn-sm" onClick={() => onEditar(grupo)}>Editar</button>
-            <button className="btn btn-danger btn-sm" onClick={() => onEliminar(grupo.codGrupo)}>Eliminar</button>
+            {puedeEditar && <button className="btn btn-secondary btn-sm" onClick={() => onEditar(grupo)}>Editar</button>}
+            {puedeEliminar && <button className="btn btn-danger btn-sm" onClick={() => onEliminar(grupo.codGrupo)}>Eliminar</button>}
           </div>
         </td>
       </tr>
@@ -153,6 +158,9 @@ export default function Grupos() {
     }
   };
 
+  const { user } = useAuth();
+  const puedeCrear = user?.esAdmin || user?.permisos.includes('crear_grupo');
+
   const tree = data ? buildTree(data.todosGrupos) : [];
 
   if (loading) return <div className="loading">Cargando grupos...</div>;
@@ -161,27 +169,31 @@ export default function Grupos() {
   return (
     <PageLayout
       title="Grupos de Activos"
-      actions={[
-        {
-          label: 'Nuevo',
-          icon: '+',
-          variant: 'primary' as const,
-          onClick: () => {
-            setEditId(null);
-            setForm({
-              codHijo: '',
-              desGrupo: '',
-              codPadre: '',
-              nivel: '1',
-              aB: 'A',
-              vidaUtilDefault: '',
-              codigoContable: '',
-            });
-            setShowModal(true);
-          }
-        },
-        { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
-      ]}
+      actions={
+        puedeCrear ? [
+          {
+            label: 'Nuevo',
+            icon: '+',
+            variant: 'primary' as const,
+            onClick: () => {
+              setEditId(null);
+              setForm({
+                codHijo: '',
+                desGrupo: '',
+                codPadre: '',
+                nivel: '1',
+                aB: 'A',
+                vidaUtilDefault: '',
+                codigoContable: '',
+              });
+              setShowModal(true);
+            }
+          },
+          { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
+        ] : [
+          { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
+        ]
+      }
     >
 
 

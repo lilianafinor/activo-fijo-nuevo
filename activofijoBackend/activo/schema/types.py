@@ -336,4 +336,50 @@ class InLogBajaActType(DjangoObjectType):
         fields = '__all__'
 
 
+# ═══════════════════════════════════════════════════════════════
+# TIPOS PAGINADOS PARA GRANDES VOLÚMENES
+# ═══════════════════════════════════════════════════════════════
+
+class InActivoPaginatedType(graphene.ObjectType):
+    total_count = graphene.Int()
+    results = graphene.List(InActivoType)
+
+class InVehicPaginatedType(graphene.ObjectType):
+    total_count = graphene.Int()
+    results = graphene.List(InVehicType)
+
+class InAsignadoPaginatedType(graphene.ObjectType):
+    total_count = graphene.Int()
+    results = graphene.List(InAsignadoType)
+
+class InLogActivoPaginatedType(graphene.ObjectType):
+    total_count = graphene.Int()
+    results = graphene.List(InLogActivoType)
+
+class InLogIngresoPaginatedType(graphene.ObjectType):
+    total_count = graphene.Int()
+    results = graphene.List(InLogIngresoType)
+
+class InLogAsignadoPaginatedType(graphene.ObjectType):
+    total_count = graphene.Int()
+    results = graphene.List(InLogAsignadoType)
+
+class InLogDetAsigPaginatedType(graphene.ObjectType):
+    total_count = graphene.Int()
+    results = graphene.List(InLogDetAsigType)
+
+class InLogOficinaPaginatedType(graphene.ObjectType):
+    total_count = graphene.Int()
+    results = graphene.List(InLogOficinaType)
+
+class InLogDetRevalPaginatedType(graphene.ObjectType):
+    total_count = graphene.Int()
+    results = graphene.List(InLogDetRevalType)
+
+class InLogBajaActPaginatedType(graphene.ObjectType):
+    total_count = graphene.Int()
+    results = graphene.List(InLogBajaActType)
+
+
+
 

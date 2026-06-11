@@ -1,133 +1,41 @@
 import PageLayout from '../components/ui/PageLayout';
 import React, { useState, useMemo } from 'react';
-import { useQuery, gql } from '@apollo/client';
-
-// ==================== QUERIES ====================
-const GET_LOGS_ACTIVOS = gql`
-  query GetLogsActivos {
-    todosLogsActivos {
-      id
-      nroActivo
-      codActivo
-      descripcion
-      monto
-      fecAdqui
-      nroSerie
-      fechaTrans
-      tipoActual
-    }
-  }
-`;
-
-const GET_LOGS_INGRESOS = gql`
-  query GetLogsIngresos {
-    todosLogsIngresos {
-      id
-      nroIngreso
-      gestion
-      fechaRecep
-      glosa
-      fechaTrans
-      estado
-      tipoME
-    }
-  }
-`;
-
-const GET_LOGS_ASIGNADOS = gql`
-  query GetLogsAsignados {
-    todosLogsAsignados {
-      id
-      codAsig
-      codResp
-      codOfic
-      fechaAsig
-      obs
-      fechaAct
-      tipoLog
-    }
-  }
-`;
-
-const GET_LOGS_DET_ASIG = gql`
-  query GetLogsDetAsig {
-    todosLogsDetAsig {
-      id
-      codAsig
-      nroActivo
-      cantidad
-      fechaTrans
-      fechaTransAct
-      tipoActual
-    }
-  }
-`;
-
-const GET_LOGS_OFICINA = gql`
-  query GetLogsOficina {
-    todosLogsOficina {
-      id
-      codOfic
-      codDpto
-      desDpto
-      codPadre
-      nivel
-      aB
-      fechaMe
-      tipoMe
-    }
-  }
-`;
-
-const GET_LOGS_DET_REVAL = gql`
-  query GetLogsDetReval {
-    todosLogsDetReval {
-      id
-      codReval
-      nroActivo
-      vidaUtilMes
-      vidaUtilAno
-      costo
-      fechaReval
-      fechaActual
-      tipoActual
-    }
-  }
-`;
-
-const GET_LOGS_BAJA_ACT = gql`
-  query GetLogsBajaAct {
-    todosLogsBajaAct {
-      id
-      nro
-      codAsig
-      nroActivo
-      codEmpAut
-      fechaBajaTe
-      fechaBajaEf
-      motivo
-      observacion
-      fechaTrans
-      valorFinal
-    }
-  }
-`;
+import { useQuery } from '@apollo/client';
+import { useAuth } from '../context/AuthContext';
+import {
+  GET_LOGS_ACTIVOS_PAGINADOS,
+  GET_LOGS_INGRESOS_PAGINADOS,
+  GET_LOGS_ASIGNADOS_PAGINADOS,
+  GET_LOGS_DET_ASIG_PAGINADOS,
+  GET_LOGS_OFICINA_PAGINADOS,
+  GET_LOGS_DET_REVAL_PAGINADOS,
+  GET_LOGS_BAJA_ACT_PAGINADOS
+} from '../graphql/queries';
 
 const ITEMS_POR_PAGINA = 15;
 
 export default function Logs() {
+  const { user } = useAuth();
+  const puedeVerAuditoria = user?.esAdmin || user?.permisos.includes('ver_auditoria');
+
   const [activeTab, setActiveTab] = useState<'activos' | 'ingresos' | 'asignaciones' | 'det_asignaciones' | 'oficinas' | 'revaluos' | 'bajas'>('activos');
   const [busqueda, setBusqueda] = useState('');
   const [paginaActual, setPaginaActual] = useState(1);
 
+  const variables = {
+    limit: ITEMS_POR_PAGINA,
+    offset: (paginaActual - 1) * ITEMS_POR_PAGINA,
+    search: busqueda.trim() || ""
+  };
+
   // Queries executed conditionally using skip
-  const { data: dataActivos, loading: loadingActivos, refetch: refetchActivos } = useQuery(GET_LOGS_ACTIVOS, { skip: activeTab !== 'activos' });
-  const { data: dataIngresos, loading: loadingIngresos, refetch: refetchIngresos } = useQuery(GET_LOGS_INGRESOS, { skip: activeTab !== 'ingresos' });
-  const { data: dataAsignados, loading: loadingAsignados, refetch: refetchAsignados } = useQuery(GET_LOGS_ASIGNADOS, { skip: activeTab !== 'asignaciones' });
-  const { data: dataDetAsig, loading: loadingDetAsig, refetch: refetchDetAsig } = useQuery(GET_LOGS_DET_ASIG, { skip: activeTab !== 'det_asignaciones' });
-  const { data: dataOficina, loading: loadingOficina, refetch: refetchOficina } = useQuery(GET_LOGS_OFICINA, { skip: activeTab !== 'oficinas' });
-  const { data: dataDetReval, loading: loadingDetReval, refetch: refetchDetReval } = useQuery(GET_LOGS_DET_REVAL, { skip: activeTab !== 'revaluos' });
-  const { data: dataBajaAct, loading: loadingBajaAct, refetch: refetchBajaAct } = useQuery(GET_LOGS_BAJA_ACT, { skip: activeTab !== 'bajas' });
+  const { data: dataActivos, loading: loadingActivos, refetch: refetchActivos } = useQuery(GET_LOGS_ACTIVOS_PAGINADOS, { variables, skip: activeTab !== 'activos' });
+  const { data: dataIngresos, loading: loadingIngresos, refetch: refetchIngresos } = useQuery(GET_LOGS_INGRESOS_PAGINADOS, { variables, skip: activeTab !== 'ingresos' });
+  const { data: dataAsignados, loading: loadingAsignados, refetch: refetchAsignados } = useQuery(GET_LOGS_ASIGNADOS_PAGINADOS, { variables, skip: activeTab !== 'asignaciones' });
+  const { data: dataDetAsig, loading: loadingDetAsig, refetch: refetchDetAsig } = useQuery(GET_LOGS_DET_ASIG_PAGINADOS, { variables, skip: activeTab !== 'det_asignaciones' });
+  const { data: dataOficina, loading: loadingOficina, refetch: refetchOficina } = useQuery(GET_LOGS_OFICINA_PAGINADOS, { variables, skip: activeTab !== 'oficinas' });
+  const { data: dataDetReval, loading: loadingDetReval, refetch: refetchDetReval } = useQuery(GET_LOGS_DET_REVAL_PAGINADOS, { variables, skip: activeTab !== 'revaluos' });
+  const { data: dataBajaAct, loading: loadingBajaAct, refetch: refetchBajaAct } = useQuery(GET_LOGS_BAJA_ACT_PAGINADOS, { variables, skip: activeTab !== 'bajas' });
 
   const handleRefresh = () => {
     if (activeTab === 'activos' && refetchActivos) refetchActivos();
@@ -139,27 +47,64 @@ export default function Logs() {
     if (activeTab === 'bajas' && refetchBajaAct) refetchBajaAct();
   };
 
-  // Get active dataset and loading state
-  const { currentList, loading } = useMemo(() => {
+  // Get active dataset, total count, and loading state
+  const { currentList, totalCount, loading } = useMemo(() => {
     switch (activeTab) {
       case 'activos':
-        return { currentList: dataActivos?.todosLogsActivos || [], loading: loadingActivos };
+        return {
+          currentList: dataActivos?.todosLogsActivosPaginados?.results || [],
+          totalCount: dataActivos?.todosLogsActivosPaginados?.totalCount || 0,
+          loading: loadingActivos
+        };
       case 'ingresos':
-        return { currentList: dataIngresos?.todosLogsIngresos || [], loading: loadingIngresos };
+        return {
+          currentList: dataIngresos?.todosLogsIngresosPaginados?.results || [],
+          totalCount: dataIngresos?.todosLogsIngresosPaginados?.totalCount || 0,
+          loading: loadingIngresos
+        };
       case 'asignaciones':
-        return { currentList: dataAsignados?.todosLogsAsignados || [], loading: loadingAsignados };
+        return {
+          currentList: dataAsignados?.todosLogsAsignadosPaginados?.results || [],
+          totalCount: dataAsignados?.todosLogsAsignadosPaginados?.totalCount || 0,
+          loading: loadingAsignados
+        };
       case 'det_asignaciones':
-        return { currentList: dataDetAsig?.todosLogsDetAsig || [], loading: loadingDetAsig };
+        return {
+          currentList: dataDetAsig?.todosLogsDetAsigPaginados?.results || [],
+          totalCount: dataDetAsig?.todosLogsDetAsigPaginados?.totalCount || 0,
+          loading: loadingDetAsig
+        };
       case 'oficinas':
-        return { currentList: dataOficina?.todosLogsOficina || [], loading: loadingOficina };
+        return {
+          currentList: dataOficina?.todosLogsOficinaPaginados?.results || [],
+          totalCount: dataOficina?.todosLogsOficinaPaginados?.totalCount || 0,
+          loading: loadingOficina
+        };
       case 'revaluos':
-        return { currentList: dataDetReval?.todosLogsDetReval || [], loading: loadingDetReval };
+        return {
+          currentList: dataDetReval?.todosLogsDetRevalPaginados?.results || [],
+          totalCount: dataDetReval?.todosLogsDetRevalPaginados?.totalCount || 0,
+          loading: loadingDetReval
+        };
       case 'bajas':
-        return { currentList: dataBajaAct?.todosLogsBajaAct || [], loading: loadingBajaAct };
+        return {
+          currentList: dataBajaAct?.todosLogsBajaActPaginados?.results || [],
+          totalCount: dataBajaAct?.todosLogsBajaActPaginados?.totalCount || 0,
+          loading: loadingBajaAct
+        };
       default:
-        return { currentList: [], loading: false };
+        return { currentList: [], totalCount: 0, loading: false };
     }
-  }, [activeTab, dataActivos, loadingActivos, dataIngresos, loadingIngresos, dataAsignados, loadingAsignados, dataDetAsig, loadingDetAsig, dataOficina, loadingOficina, dataDetReval, loadingDetReval, dataBajaAct, loadingBajaAct]);
+  }, [
+    activeTab,
+    dataActivos, loadingActivos,
+    dataIngresos, loadingIngresos,
+    dataAsignados, loadingAsignados,
+    dataDetAsig, loadingDetAsig,
+    dataOficina, loadingOficina,
+    dataDetReval, loadingDetReval,
+    dataBajaAct, loadingBajaAct
+  ]);
 
   // Handle Tab Switch (reset page and query search)
   const handleTabChange = (tab: any) => {
@@ -168,73 +113,11 @@ export default function Logs() {
     setPaginaActual(1);
   };
 
-  // Filter list based on search term
-  const filteredList = useMemo(() => {
-    if (!busqueda.trim()) return currentList;
-    const term = busqueda.toLowerCase();
-
-    return currentList.filter((item: any) => {
-      // General check across key attributes depending on tab
-      if (activeTab === 'activos') {
-        return (
-          item.codActivo?.toLowerCase().includes(term) ||
-          item.descripcion?.toLowerCase().includes(term) ||
-          item.nroSerie?.toLowerCase().includes(term) ||
-          String(item.nroActivo).includes(term)
-        );
-      }
-      if (activeTab === 'ingresos') {
-        return (
-          item.glosa?.toLowerCase().includes(term) ||
-          String(item.nroIngreso).includes(term) ||
-          String(item.gestion).includes(term)
-        );
-      }
-      if (activeTab === 'asignaciones') {
-        return (
-          String(item.codAsig).includes(term) ||
-          String(item.codResp).includes(term) ||
-          String(item.codOfic).includes(term) ||
-          item.obs?.toLowerCase().includes(term)
-        );
-      }
-      if (activeTab === 'det_asignaciones') {
-        return (
-          String(item.codAsig).includes(term) ||
-          String(item.nroActivo).includes(term)
-        );
-      }
-      if (activeTab === 'oficinas') {
-        return (
-          item.codDpto?.toLowerCase().includes(term) ||
-          item.desDpto?.toLowerCase().includes(term) ||
-          String(item.codOfic).includes(term)
-        );
-      }
-      if (activeTab === 'revaluos') {
-        return (
-          String(item.codReval).includes(term) ||
-          String(item.nroActivo).includes(term)
-        );
-      }
-      if (activeTab === 'bajas') {
-        return (
-          item.observacion?.toLowerCase().includes(term) ||
-          String(item.nro).includes(term) ||
-          String(item.nroActivo).includes(term)
-        );
-      }
-      return false;
-    });
-  }, [currentList, busqueda, activeTab]);
-
   // Pagination calculations
-  const totalPaginas = Math.ceil(filteredList.length / ITEMS_POR_PAGINA);
+  const totalPaginas = Math.ceil(totalCount / ITEMS_POR_PAGINA);
   const paginaActualSegura = Math.min(paginaActual, totalPaginas || 1);
-  const paginatedList = useMemo(() => {
-    const start = (paginaActualSegura - 1) * ITEMS_POR_PAGINA;
-    return filteredList.slice(start, start + ITEMS_POR_PAGINA);
-  }, [filteredList, paginaActualSegura]);
+  const paginatedList = currentList;
+
 
   const formatDateTime = (dateStr: string) => {
     if (!dateStr) return '-';
@@ -252,6 +135,20 @@ export default function Logs() {
     return <span className="badge badge-secondary">{tipo || 'MOD'}</span>;
   };
 
+  if (!puedeVerAuditoria) {
+    return (
+      <PageLayout
+        title="Acceso Restringido"
+        subtitle="No tiene los permisos necesarios para ver esta sección."
+      >
+        <div className="error-container" style={{ padding: '2rem', background: 'white', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.06)', textAlign: 'center', margin: '2rem auto', maxWidth: '600px' }}>
+          <h2 style={{ color: '#dc3545', marginBottom: '1rem' }}>Acceso Denegado</h2>
+          <p style={{ color: '#666' }}>Se requiere el permiso de 'Ver Auditoría' para ingresar a la bitácora de transacciones.</p>
+        </div>
+      </PageLayout>
+    );
+  }
+
   return (
     <PageLayout
       title="Bitácora de Transacciones"
@@ -265,13 +162,13 @@ export default function Logs() {
       {/* TABS HEADER */}
       <div style={{ display: 'flex', gap: '4px', borderBottom: '2px solid #e2e8f0', marginBottom: '1.25rem', overflowX: 'auto', paddingBottom: '2px' }}>
         {[
-          { id: 'activos', label: '📋 Activos' },
-          { id: 'ingresos', label: '📥 Ingresos' },
-          { id: 'asignaciones', label: '📌 Asignaciones' },
-          { id: 'det_asignaciones', label: '⚙️ Detalle Asignaciones' },
-          { id: 'oficinas', label: '🏢 Oficinas' },
-          { id: 'revaluos', label: '📈 Revalúos' },
-          { id: 'bajas', label: '🗑️ Bajas' }
+          { id: 'activos', label: 'Activos' },
+          { id: 'ingresos', label: 'Ingresos' },
+          { id: 'asignaciones', label: 'Asignaciones' },
+          { id: 'det_asignaciones', label: 'Detalle Asignaciones' },
+          { id: 'oficinas', label: 'Oficinas' },
+          { id: 'revaluos', label: 'Revalúos' },
+          { id: 'bajas', label: 'Bajas' }
         ].map(tab => (
           <button
             key={tab.id}
@@ -307,7 +204,7 @@ export default function Logs() {
             />
           </div>
           <div className="text-xs font-semibold text-slate-400 bg-slate-100 px-3 py-2 rounded-lg">
-            Total Logs: {filteredList.length}
+            Total Logs: {totalCount}
           </div>
         </div>
       </div>
@@ -526,7 +423,7 @@ export default function Logs() {
       {!loading && totalPaginas > 1 && (
         <div className="flex items-center justify-between mt-6 bg-white border border-slate-200 rounded-xl px-5 py-4 shadow-sm">
           <span className="text-slate-500 text-sm">
-            Página {paginaActualSegura} de {totalPaginas} (Mostrando {paginatedList.length} de {filteredList.length} registros)
+            Página {paginaActualSegura} de {totalPaginas} (Mostrando {paginatedList.length} de {totalCount} registros)
           </span>
           <div className="flex gap-2">
             <button 

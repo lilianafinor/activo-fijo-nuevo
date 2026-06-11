@@ -2,6 +2,7 @@ import PageLayout from '../components/ui/PageLayout';
 import React, { useState } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
 import { GET_DEPRECIACIONES_DATA, GET_DEP_ACUMULADA } from '../graphql/queries';
+import { useAuth } from '../context/AuthContext';
 import { CALCULAR_DEP_MASIVA } from '../graphql/mutations';
 
 const MESES = [
@@ -18,6 +19,10 @@ const formatPeriodo = (nroSerie: number) => {
 };
 
 export default function Depreciaciones() {
+  const { user } = useAuth();
+  const puedeVer = user?.esAdmin || user?.permisos.includes('ver_depreciaciones');
+  const puedeCalcular = user?.esAdmin || user?.permisos.includes('crear_depreciacion');
+
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth() + 1;
 
@@ -33,6 +38,20 @@ export default function Depreciaciones() {
 
   if (loading) return <div className="loading">Cargando depreciaciones...</div>;
   if (error) return <div className="error">Error: {error.message}</div>;
+
+  if (!puedeVer) {
+    return (
+      <PageLayout
+        title="Acceso Restringido"
+        subtitle="No tiene los permisos necesarios para ver esta sección."
+      >
+        <div className="error-container" style={{ padding: '2rem', background: 'white', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.06)', textAlign: 'center', margin: '2rem auto', maxWidth: '600px' }}>
+          <h2 style={{ color: '#dc3545', marginBottom: '1rem' }}>Acceso Denegado</h2>
+          <p style={{ color: '#666' }}>Se requiere el permiso de 'Ver Depreciaciones' para ingresar a este módulo.</p>
+        </div>
+      </PageLayout>
+    );
+  }
 
   const ultimasDepr: any[] = mainData?.ultimasDepreciaciones || [];
   const todosActivos: any[] = mainData?.todosActivos || [];
@@ -108,24 +127,24 @@ export default function Depreciaciones() {
       {/* Cálculo masivo panel */}
       <div className="table-container" style={{ marginBottom: '1.5rem' }}>
         <h3 style={{ margin: '0 0 1rem 0', fontSize: '1rem', fontWeight: 700, color: '#1a3c6e' }}>
-          🔄 Calcular Depreciación Mensual Automática
+          Calcular Depreciación Mensual Automática
         </h3>
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label>Gestión (Año)</label>
             <input type="number" value={gestion} onChange={e => setGestion(parseInt(e.target.value))}
-              min={2000} max={2100} style={{ width: '110px' }} />
+              min={2000} max={2100} style={{ width: '110px' }} disabled={!puedeCalcular} />
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label>Período (Mes)</label>
-            <select value={periodo} onChange={e => setPeriodo(parseInt(e.target.value))} style={{ width: '150px' }}>
+            <select value={periodo} onChange={e => setPeriodo(parseInt(e.target.value))} style={{ width: '150px' }} disabled={!puedeCalcular}>
               {MESES.map((m, idx) => (
                 <option key={idx + 1} value={idx + 1}>{m}</option>
               ))}
             </select>
           </div>
-          <button className="btn btn-primary" onClick={handleCalcular} disabled={calcLoading}>
-            {calcLoading ? '⏳ Calculando...' : `⚙️ Calcular ${MESES[periodo - 1]} ${gestion}`}
+          <button className="btn btn-primary" onClick={handleCalcular} disabled={calcLoading || !puedeCalcular}>
+            {calcLoading ? 'Calculando...' : `Calcular ${MESES[periodo - 1]} ${gestion}`}
           </button>
         </div>
 

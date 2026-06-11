@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
 import { GET_OFICINAS } from '../graphql/queries';
 import { CREAR_OFIC, ELIMINAR_OFIC } from '../graphql/mutations';
+import { useAuth } from '../context/AuthContext';
 
 const buildTree = (oficinas: any[]) => {
   const map: Record<number, any> = {};
@@ -25,6 +26,9 @@ const nivelNombre: Record<number, string> = {
 };
 
 const OficinFila = ({ oficina, onEliminar }: { oficina: any; onEliminar: (id: number) => void }) => {
+  const { user } = useAuth();
+  const puedeEliminar = user?.esAdmin || user?.permisos.includes('eliminar_ubicacion');
+
   const sangria = ((oficina.nivel || 1) - 1) * 28;
   const prefijos = ['', '├─ ', '└── '];
   const prefijo = prefijos[Math.min((oficina.nivel || 1) - 1, 2)];
@@ -46,7 +50,7 @@ const OficinFila = ({ oficina, onEliminar }: { oficina: any; onEliminar: (id: nu
         </td>
         <td><span className={`badge ${oficina.aB === 'A' ? 'badge-success' : 'badge-danger'}`}>{oficina.aB === 'A' ? 'Activo' : 'Baja'}</span></td>
         <td>
-          <button className="btn btn-danger btn-sm" onClick={() => onEliminar(oficina.codOfic)}>Eliminar</button>
+          {puedeEliminar && <button className="btn btn-danger btn-sm" onClick={() => onEliminar(oficina.codOfic)}>Eliminar</button>}
         </td>
       </tr>
       {oficina.children?.map((hijo: any) => (
@@ -81,6 +85,9 @@ export default function Oficinas() {
     await eliminarOfic({ variables: { codOfic } }); refetch();
   };
 
+  const { user } = useAuth();
+  const puedeCrear = user?.esAdmin || user?.permisos.includes('crear_ubicacion');
+
   const tree = data ? buildTree(data.todasOficinas) : [];
 
   if (loading) return <div className="loading">Cargando oficinas...</div>;
@@ -89,10 +96,14 @@ export default function Oficinas() {
   return (
     <PageLayout
       title="Oficinas / Unidades"
-      actions={[
-        { label: 'Nuevo', icon: '+', variant: 'primary' as const, onClick: () => { setForm({ codDpto: '', desDpto: '', codPadre: '', nivel: '1', aB: 'A' }); setShowModal(true); } },
-        { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
-      ]}
+      actions={
+        puedeCrear ? [
+          { label: 'Nuevo', icon: '+', variant: 'primary' as const, onClick: () => { setForm({ codDpto: '', desDpto: '', codPadre: '', nivel: '1', aB: 'A' }); setShowModal(true); } },
+          { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
+        ] : [
+          { label: 'Actualizar', icon: '↺', onClick: () => refetch() },
+        ]
+      }
     >
 
 

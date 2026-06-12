@@ -629,7 +629,6 @@ export default function Transferencias() {
     setNroActivoTransf('');
   };
 
-  if (loading) return <div className="loading">Cargando transferencias...</div>;
   if (error) return <div className="error">Error: {error.message}</div>;
 
   return (
@@ -655,15 +654,30 @@ export default function Transferencias() {
             </tr>
           </thead>
           <tbody>
-            {data?.todasTransferencias?.length === 0 && (
-              <tr>
-                <td colSpan={8} className="empty" style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>
-                  No hay transferencias registradas
-                </td>
-              </tr>
-            )}
-            {data?.todasTransferencias?.map((t: any) => (
-              <tr key={t.codTransf}>
+            {loading ? (
+              Array.from({ length: 5 }).map((_, idx) => (
+                <tr key={idx} className="animate-pulse border-b border-slate-700/30">
+                  <td><div className="h-4 bg-slate-700 rounded w-8"></div></td>
+                  <td><div className="h-4 bg-slate-700 rounded w-44"></div></td>
+                  <td><div className="h-4 bg-slate-700 rounded w-44"></div></td>
+                  <td><div className="h-4 bg-slate-700 rounded w-24"></div></td>
+                  <td><div className="h-6 bg-slate-700 rounded w-60"></div></td>
+                  <td><div className="h-4 bg-slate-700 rounded w-20"></div></td>
+                  <td><div className="h-5 bg-slate-700 rounded-full w-16"></div></td>
+                  <td><div className="h-6 bg-slate-700 rounded w-36 ml-auto"></div></td>
+                </tr>
+              ))
+            ) : (
+              <>
+                {data?.todasTransferencias?.length === 0 && (
+                  <tr>
+                    <td colSpan={8} className="empty" style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>
+                      No hay transferencias registradas
+                    </td>
+                  </tr>
+                )}
+                {data?.todasTransferencias?.map((t: any) => (
+                  <tr key={t.codTransf} className="border-b border-slate-700 hover:bg-slate-700/30 transition">
                 <td><strong>#{t.codTransf}</strong></td>
                 <td>{formatOfficeName(t.codOfiRem) || '-'}</td>
                 <td>{formatOfficeName(t.codOfiDest) || '-'}</td>
@@ -744,6 +758,8 @@ export default function Transferencias() {
                 </td>
               </tr>
             ))}
+              </>
+            )}
           </tbody>
         </table>
       </div>
@@ -794,7 +810,15 @@ export default function Transferencias() {
                   </div>
 
                   <div className="form-group">
-                    <label>Asignación Origen (Opcional)</label>
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <label className="mb-0">Asignación Origen (Opcional)</label>
+                      <span 
+                        className="cursor-help text-blue-400 hover:text-blue-300 font-bold font-mono text-[10px] select-none bg-blue-500/10 border border-blue-500/20 w-4 h-4 rounded-full flex items-center justify-center transition-all"
+                        title="Opcional. Vincula la transferencia a una asignación de origen específica."
+                      >
+                        ?
+                      </span>
+                    </div>
                     <div className="autocomplete-container">
                       <input
                         type="text"
@@ -824,7 +848,15 @@ export default function Transferencias() {
                   </div>
 
                   <div className="form-group">
-                    <label>Asignación Destino (Opcional)</label>
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <label className="mb-0">Asignación Destino (Opcional)</label>
+                      <span 
+                        className="cursor-help text-blue-400 hover:text-blue-300 font-bold font-mono text-[10px] select-none bg-blue-500/10 border border-blue-500/20 w-4 h-4 rounded-full flex items-center justify-center transition-all"
+                        title="Opcional. Registra automáticamente una asignación de destino para el activo."
+                      >
+                        ?
+                      </span>
+                    </div>
                     <div className="autocomplete-container">
                       <input
                         type="text"

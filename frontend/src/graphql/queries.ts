@@ -124,6 +124,27 @@ export const GET_GRUPOS = gql`
       codPadre {
         codGrupo
         desGrupo
+        codHijo
+        codPadre {
+          codGrupo
+          desGrupo
+          codHijo
+          codPadre {
+            codGrupo
+            desGrupo
+            codHijo
+            codPadre {
+              codGrupo
+              desGrupo
+              codHijo
+              codPadre {
+                codGrupo
+                desGrupo
+                codHijo
+              }
+            }
+          }
+        }
       }
     }
   }
@@ -141,6 +162,27 @@ export const GET_OFICINAS = gql`
       codPadre {
         codOfic
         desDpto
+        codDpto
+        codPadre {
+          codOfic
+          desDpto
+          codDpto
+          codPadre {
+            codOfic
+            desDpto
+            codDpto
+            codPadre {
+              codOfic
+              desDpto
+              codDpto
+              codPadre {
+                codOfic
+                desDpto
+                codDpto
+              }
+            }
+          }
+        }
       }
     }
   }
@@ -215,6 +257,16 @@ export const GET_ACTIVOS = gql`
             codGrupo
             codHijo
             nivel
+            codPadre {
+              codGrupo
+              codHijo
+              nivel
+              codPadre {
+                codGrupo
+                codHijo
+                nivel
+              }
+            }
           }
         }
       }
@@ -261,6 +313,16 @@ export const GET_CATALOGOS_ACTIVOS = gql`
           codGrupo
           codHijo
           nivel
+          codPadre {
+            codGrupo
+            codHijo
+            nivel
+            codPadre {
+              codGrupo
+              codHijo
+              nivel
+            }
+          }
         }
       }
     }
@@ -291,6 +353,16 @@ export const GET_CATALOGOS_ACTIVOS = gql`
             codOfic
             codDpto
             nivel
+            codPadre {
+              codOfic
+              codDpto
+              nivel
+              codPadre {
+                codOfic
+                codDpto
+                nivel
+              }
+            }
           }
         }
       }
@@ -317,8 +389,8 @@ export const GET_CATALOGOS_ACTIVOS = gql`
 // ==================== PAGINATED QUERIES ====================
 
 export const GET_ACTIVOS_PAGINADOS = gql`
-  query GetActivosPaginados($limit: Int, $offset: Int, $search: String, $soloActivos: Boolean, $soloAprobados: Boolean) {
-    todosActivosPaginados(limit: $limit, offset: $offset, search: $search, soloActivos: $soloActivos, soloAprobados: $soloAprobados) {
+  query GetActivosPaginados($limit: Int, $offset: Int, $search: String, $soloActivos: Boolean, $soloAprobados: Boolean, $soloPendientes: Boolean) {
+    todosActivosPaginados(limit: $limit, offset: $offset, search: $search, soloActivos: $soloActivos, soloAprobados: $soloAprobados, soloPendientes: $soloPendientes) {
       totalCount
       results {
         nroActivo
@@ -341,6 +413,7 @@ export const GET_ACTIVOS_PAGINADOS = gql`
           desGrupo
           nivel
           codHijo
+          vidaUtilDefault
           codPadre {
             codGrupo
             codHijo
@@ -349,6 +422,16 @@ export const GET_ACTIVOS_PAGINADOS = gql`
               codGrupo
               codHijo
               nivel
+              codPadre {
+                codGrupo
+                codHijo
+                nivel
+                codPadre {
+                  codGrupo
+                  codHijo
+                  nivel
+                }
+              }
             }
           }
         }
@@ -371,6 +454,55 @@ export const GET_ACTIVOS_PAGINADOS = gql`
         nroIngreso {
           nroIngreso
           glosa
+          codOficDest {
+            codOfic
+            codDpto
+            desDpto
+            codPadre {
+              codOfic
+              codDpto
+              desDpto
+              codPadre {
+                codOfic
+                codDpto
+                desDpto
+              }
+            }
+          }
+        }
+        inDetAsigSet {
+          codAsig {
+            codAsig
+            estado
+            fechaAsig
+            codOfic {
+              codOfic
+              codDpto
+              desDpto
+              codPadre {
+                codOfic
+                codDpto
+                desDpto
+                codPadre {
+                  codOfic
+                  codDpto
+                  desDpto
+                }
+              }
+            }
+          }
+        }
+        inDetRevalSet {
+          vidaUtilAno
+          vidaUtilMes
+          estado
+          fechaReval
+        }
+        inDepAcumuladaSet {
+          nroSerie
+          depresiacion
+          acumulada
+          valorActual
         }
       }
     }
@@ -454,6 +586,22 @@ export const GET_ASIGNACIONES_PAGINADAS = gql`
             nroActivo
             codActivo
             descripcion
+            monto
+            codGrupo {
+              desGrupo
+              vidaUtilDefault
+            }
+            inDetRevalSet {
+              vidaUtilAno
+              vidaUtilMes
+              estado
+            }
+            inDepAcumuladaSet {
+              nroSerie
+              depresiacion
+              acumulada
+              valorActual
+            }
           }
         }
       }

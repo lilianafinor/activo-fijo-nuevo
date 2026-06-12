@@ -158,7 +158,7 @@ export default function Ufvs() {
               </tr>
             )}
             {paginatedTasas.map((t: any) => (
-              <tr key={t.nro}>
+              <tr key={t.fecha}>
                 <td><strong>#{t.nro}</strong></td>
                 <td>
                   <span className="badge badge-info" style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>

@@ -1067,6 +1067,68 @@ class CrearActivo(graphene.Mutation):
             estado_registro='ELABORADO', a_b='A'
         )
         registrar_log_activo(obj, 'I', 1)
+
+        # --- LÓGICA DE ASIGNACIÓN AUTOMÁTICA ---
+        try:
+            ingreso = in_ingreso.objects.get(pk=nro_ingreso)
+            if ingreso.cod_ofic_dest_id and ingreso.cod_emp_dest:
+                fecha_actual = timezone.now().date()
+                
+                # Buscar asignación abierta para esa oficina y empleado hoy
+                asignacion = in_asignado.objects.filter(
+                    cod_ofic_id=ingreso.cod_ofic_dest_id,
+                    cod_resp=ingreso.cod_emp_dest,
+                    fecha_asig=fecha_actual,
+                    estado='A'
+                ).first()
+                
+                if not asignacion:
+                    # Crear nueva asignación inicial
+                    asignacion = in_asignado.objects.create(
+                        tipo_asig_id=1,  # 1 = Comprado / Inicial
+                        tipo_resp=ingreso.tipo_emp_dest if ingreso.tipo_emp_dest else 1,
+                        cod_resp=ingreso.cod_emp_dest,
+                        cod_ofic_id=ingreso.cod_ofic_dest_id,
+                        fecha_asig=fecha_actual,
+                        estado='A'
+                    )
+                    in_log_asignado.objects.create(
+                        cod_asig=asignacion.cod_asig,
+                        tipo_asig=asignacion.tipo_asig_id,
+                        tipo_resp=asignacion.tipo_resp,
+                        cod_resp=asignacion.cod_resp,
+                        cod_ofic=asignacion.cod_ofic_id,
+                        fecha_asig=asignacion.fecha_asig,
+                        fecha_fin=asignacion.fecha_fin,
+                        obs='Asignación automática por creación de activo',
+                        tipo_trans_ant=0, cod_trans_ant=0,
+                        tipo_trans_act=1, cod_trans_act=asignacion.cod_asig,
+                        fecha_act=timezone.now(),
+                        tipo_log='I', tipo_inv=0, cod_inv=0
+                    )
+                
+                # Crear el detalle de asignación vinculando este activo
+                det = in_det_asig.objects.create(
+                    cod_asig_id=asignacion.cod_asig,
+                    nro_activo_id=obj.nro_activo,
+                    cantidad=1,
+                    fecha_trans=fecha_actual
+                )
+                in_log_det_asig.objects.create(
+                    cod_asig=det.cod_asig_id,
+                    nro_activo=det.nro_activo_id,
+                    cantidad=det.cantidad,
+                    fecha_trans=det.fecha_trans,
+                    tipo_trans=1, cod_trans=det.cod_asig_id,
+                    tipo_trans_act=1, cod_trans_act=det.cod_asig_id,
+                    fecha_trans_act=timezone.now(),
+                    tipo_actual='I'
+                )
+        except Exception as e:
+            # Si hay error en la asignación, no evitamos la creación del activo
+            pass
+        # ---------------------------------------
+
         return CrearActivo(activo=obj)
 
 class EditarActivo(graphene.Mutation):
@@ -2050,6 +2112,7 @@ class TokenAuth(graphene.Mutation):
             )
 
         token_str = generate_token(user)
+        info.context.jwt_cookie_to_set = token_str
         return TokenAuth(
             token=token_str,
             payload="{}",
@@ -2058,7 +2121,12 @@ class TokenAuth(graphene.Mutation):
             temp_token=None,
             user_email=user.correo
         )
+class Logout(graphene.Mutation):
+    success = graphene.Boolean()
 
+    def mutate(self, info):
+        info.context.jwt_cookie_to_delete = True
+        return Logout(success=True)
 
 class VerifyOtp(graphene.Mutation):
     class Arguments:
@@ -2088,6 +2156,7 @@ class VerifyOtp(graphene.Mutation):
             raise Exception("Código de verificación incorrecto")
 
         token_str = generate_token(user)
+        info.context.jwt_cookie_to_set = token_str
         return VerifyOtp(
             token=token_str,
             user_email=user.correo
@@ -2529,7 +2598,10 @@ class Mutation(graphene.ObjectType):
     # ── Authentication and RBAC ─────────────────────────────────
     token_auth                   = TokenAuth.Field()
     verify_otp                   = VerifyOtp.Field()
+    logout                       = Logout.Field()
     obtener_preconfiguracion_2fa = ObtenerPreconfiguracion2FA.Field()
+    # 2FA
+
     activar_2fa                  = Activar2FA.Field()
     desactivar_2fa               = Desactivar2FA.Field()
     registrar_empleado_usuario   = RegistrarEmpleadoUsuario.Field()

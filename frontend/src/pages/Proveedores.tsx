@@ -190,7 +190,6 @@ export default function Proveedores() {
     }
   };
 
-  if (loading) return <div className="loading">Cargando proveedores y contactos...</div>;
   if (error) return <div className="error">Error: {error.message}</div>;
 
   return (
@@ -221,124 +220,142 @@ export default function Proveedores() {
             </tr>
           </thead>
           <tbody>
-            {data?.todosProvedores?.length === 0 && (
+            {loading ? (
+              Array.from({ length: 5 }).map((_, idx) => (
+                <tr key={idx} className="animate-pulse">
+                  <td><div className="h-4 bg-gray-200 rounded w-8"></div></td>
+                  <td><div className="h-4 bg-gray-200 rounded w-40"></div></td>
+                  <td><div className="h-4 bg-gray-200 rounded w-24"></div></td>
+                  <td><div className="h-4 bg-gray-200 rounded w-20"></div></td>
+                  <td><div className="h-4 bg-gray-200 rounded w-16"></div></td>
+                  <td><div className="h-4 bg-gray-200 rounded w-48"></div></td>
+                  <td><div className="h-8 bg-gray-200 rounded w-24"></div></td>
+                  <td><div className="h-8 bg-gray-200 rounded w-28"></div></td>
+                </tr>
+              ))
+            ) : data?.todosProvedores?.length === 0 ? (
               <tr><td colSpan={8} className="empty">No hay proveedores registrados</td></tr>
-            )}
-            {data?.todosProvedores?.map((p: any) => {
-              const isExpanded = expandedProvId === p.codProv;
-              const contactCount = p.inContactoSet?.length || 0;
-              return (
-                <React.Fragment key={p.codProv}>
-                  <tr 
-                    onClick={() => toggleExpand(p.codProv)}
-                    style={{ cursor: 'pointer', background: isExpanded ? '#f8fafc' : 'white' }}
-                  >
-                    <td><strong>#{p.codProv}</strong></td>
-                    <td><strong>{p.nombre}</strong></td>
-                    <td>{p.ruc || '-'}</td>
-                    <td>{p.telefono || '-'}</td>
-                    <td>{p.ciudad || '-'}</td>
-                    <td>{p.direccion || '-'}</td>
-                    <td>
-                      <button 
-                        className="btn btn-secondary btn-sm"
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', border: '1px solid #cbd5e1' }}
-                        onClick={(e) => { e.stopPropagation(); toggleExpand(p.codProv); }}
-                      >
-                        📞 {contactCount} {contactCount === 1 ? 'contacto' : 'contactos'}
-                      </button>
-                    </td>
-                    <td onClick={e => e.stopPropagation()}>
-                      <div className="btn-group">
-                        {puedeEditar && <button className="btn btn-warning btn-sm" onClick={(e) => abrirEditarProv(p, e)}>Editar</button>}
-                        {puedeEliminar && (
-                          <button 
-                            className="btn btn-danger btn-sm" 
-                            onClick={async (e) => { 
-                              e.stopPropagation();
-                              if (window.confirm('¿Está seguro de eliminar este proveedor? Tenga en cuenta que no debe tener contactos asociados.')) { 
-                                try {
-                                  await eliminarProv({ variables: { codProv: p.codProv } }); 
-                                  refetch(); 
-                                } catch (err: any) {
-                                  alert('Error al eliminar: ' + err.message);
-                                }
-                              } 
-                            }}
-                          >
-                            Eliminar
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-
-                  {/* Fila expandida con contactos */}
-                  {isExpanded && (
-                    <tr style={{ background: '#f8fafc' }}>
-                      <td colSpan={8} style={{ padding: '1.25rem 2rem', borderLeft: '4px solid #3b82f6' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                          <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#1e3a8a' }}>
-                            👤 Personas de Contacto de: {p.nombre}
-                          </h4>
-                          {puedeCrear && (
+            ) : (
+              data?.todosProvedores?.map((p: any) => {
+                const isExpanded = expandedProvId === p.codProv;
+                const contactCount = p.inContactoSet?.length || 0;
+                return (
+                  <React.Fragment key={p.codProv}>
+                    <tr 
+                      onClick={() => toggleExpand(p.codProv)}
+                      style={{ cursor: 'pointer', background: isExpanded ? '#f8fafc' : 'white' }}
+                    >
+                      <td><strong>#{p.codProv}</strong></td>
+                      <td style={{ maxWidth: '200px' }} className="truncate" title={p.nombre}>
+                        <strong>{p.nombre}</strong>
+                      </td>
+                      <td>{p.ruc || '-'}</td>
+                      <td>{p.telefono || '-'}</td>
+                      <td>{p.ciudad || '-'}</td>
+                      <td style={{ maxWidth: '180px' }} className="truncate" title={p.direccion || ''}>
+                        {p.direccion || '-'}
+                      </td>
+                      <td>
+                        <button 
+                          className="btn btn-secondary btn-sm"
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', border: '1px solid #cbd5e1' }}
+                          onClick={(e) => { e.stopPropagation(); toggleExpand(p.codProv); }}
+                        >
+                          📞 {contactCount} {contactCount === 1 ? 'contacto' : 'contactos'}
+                        </button>
+                      </td>
+                      <td onClick={e => e.stopPropagation()}>
+                        <div className="btn-group">
+                          {puedeEditar && <button className="btn btn-warning btn-sm" onClick={(e) => abrirEditarProv(p, e)}>Editar</button>}
+                          {puedeEliminar && (
                             <button 
-                              className="btn btn-primary btn-sm" 
-                              onClick={() => abrirNuevoCont(p.codProv)}
+                              className="btn btn-danger btn-sm" 
+                              onClick={async (e) => { 
+                                e.stopPropagation();
+                                if (window.confirm('¿Está seguro de eliminar este proveedor? Tenga en cuenta que no debe tener contactos asociados.')) { 
+                                  try {
+                                    await eliminarProv({ variables: { codProv: p.codProv } }); 
+                                    refetch(); 
+                                  } catch (err: any) {
+                                    alert('Error al eliminar: ' + err.message);
+                                  }
+                                } 
+                              }}
                             >
-                              + Agregar Contacto
+                              Eliminar
                             </button>
                           )}
                         </div>
-
-                        {contactCount === 0 ? (
-                          <div style={{ color: '#64748b', fontSize: '0.85rem', fontStyle: 'italic', padding: '0.5rem 0' }}>
-                            No hay personas de contacto registradas para este proveedor.
-                          </div>
-                        ) : (
-                          <table className="sub-table" style={{ width: '100%', borderCollapse: 'collapse', marginTop: '0.5rem', background: 'white', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-                            <thead>
-                              <tr style={{ background: '#f1f5f9', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>
-                                <th style={{ padding: '0.5rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>Nombre Completo</th>
-                                <th style={{ padding: '0.5rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>Tipo Doc.</th>
-                                <th style={{ padding: '0.5rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>Nro. Documento</th>
-                                <th style={{ padding: '0.5rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>Lugar (Extensión)</th>
-                                <th style={{ padding: '0.5rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>Teléfono</th>
-                                <th style={{ padding: '0.5rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: '#475569', textAlign: 'right' }}>Acciones</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {p.inContactoSet.map((c: any) => (
-                                <tr key={c.codCont} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                  <td style={{ padding: '0.5rem 1rem', fontSize: '0.85rem', fontWeight: 600 }}>{c.nombre}</td>
-                                  <td style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
-                                    {c.tipoDocid === 'C' ? 'Cédula (C)' : c.tipoDocid === 'P' ? 'Pasaporte (P)' : c.tipoDocid === 'N' ? 'NIT (N)' : c.tipoDocid === 'E' ? 'Extranjero (E)' : c.tipoDocid}
-                                  </td>
-                                  <td style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>{c.doctoIdn}</td>
-                                  <td style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}><span className="badge badge-info">{c.doctoIdl}</span></td>
-                                  <td style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>{c.telefono}</td>
-                                  <td style={{ padding: '0.5rem 1rem', fontSize: '0.85rem', textAlign: 'right' }}>
-                                    {puedeEditar && (
-                                      <button 
-                                        className="btn btn-warning btn-sm" 
-                                        style={{ padding: '2px 8px', fontSize: '0.75rem' }} 
-                                        onClick={() => abrirEditarCont(c)}
-                                      >
-                                        Editar
-                                      </button>
-                                    )}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        )}
                       </td>
                     </tr>
-                  )}
-                </React.Fragment>
-              );
-            })}
+
+                    {/* Fila expandida con contactos */}
+                    {isExpanded && (
+                      <tr style={{ background: '#f8fafc' }}>
+                        <td colSpan={8} style={{ padding: '1.25rem 2rem', borderLeft: '4px solid #3b82f6' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                            <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#1e3a8a' }}>
+                              👤 Personas de Contacto de: {p.nombre}
+                            </h4>
+                            {puedeCrear && (
+                              <button 
+                                className="btn btn-primary btn-sm" 
+                                onClick={() => abrirNuevoCont(p.codProv)}
+                              >
+                                + Agregar Contacto
+                              </button>
+                            )}
+                          </div>
+
+                          {contactCount === 0 ? (
+                            <div style={{ color: '#64748b', fontSize: '0.85rem', fontStyle: 'italic', padding: '0.5rem 0' }}>
+                              No hay personas de contacto registradas para este proveedor.
+                            </div>
+                          ) : (
+                            <table className="sub-table" style={{ width: '100%', borderCollapse: 'collapse', marginTop: '0.5rem', background: 'white', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                              <thead>
+                                <tr style={{ background: '#f1f5f9', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>
+                                  <th style={{ padding: '0.5rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>Nombre Completo</th>
+                                  <th style={{ padding: '0.5rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>Tipo Doc.</th>
+                                  <th style={{ padding: '0.5rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>Nro. Documento</th>
+                                  <th style={{ padding: '0.5rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>Lugar (Extensión)</th>
+                                  <th style={{ padding: '0.5rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>Teléfono</th>
+                                  <th style={{ padding: '0.5rem 1rem', fontSize: '0.75rem', fontWeight: 600, color: '#475569', textAlign: 'right' }}>Acciones</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {p.inContactoSet.map((c: any) => (
+                                  <tr key={c.codCont} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                    <td style={{ padding: '0.5rem 1rem', fontSize: '0.85rem', fontWeight: 600 }}>{c.nombre}</td>
+                                    <td style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
+                                      {c.tipoDocid === 'C' ? 'Cédula (C)' : c.tipoDocid === 'P' ? 'Pasaporte (P)' : c.tipoDocid === 'N' ? 'NIT (N)' : c.tipoDocid === 'E' ? 'Extranjero (E)' : c.tipoDocid}
+                                    </td>
+                                    <td style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>{c.doctoIdn}</td>
+                                    <td style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}><span className="badge badge-info">{c.doctoIdl}</span></td>
+                                    <td style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>{c.telefono}</td>
+                                    <td style={{ padding: '0.5rem 1rem', fontSize: '0.85rem', textAlign: 'right' }}>
+                                      {puedeEditar && (
+                                        <button 
+                                          className="btn btn-warning btn-sm" 
+                                          style={{ padding: '2px 8px', fontSize: '0.75rem' }} 
+                                          onClick={() => abrirEditarCont(c)}
+                                        >
+                                          Editar
+                                        </button>
+                                      )}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })
+            )}
           </tbody>
         </table>
       </div>
@@ -359,7 +376,10 @@ export default function Proveedores() {
                 />
               </div>
               <div className="form-group">
-                <label>RUC / NIT</label>
+                <label>
+                  RUC / NIT
+                  <span className="text-blue-500 cursor-help ml-1" title="Número de Registro Único de Contribuyentes o Número de Identificación Tributaria del proveedor.">🛈</span>
+                </label>
                 <input 
                   type="text"
                   maxLength={12}
@@ -377,7 +397,10 @@ export default function Proveedores() {
                 />
               </div>
               <div className="form-group">
-                <label>Ciudad</label>
+                <label>
+                  Ciudad
+                  <span className="text-blue-500 cursor-help ml-1" title="Ciudad base o departamento de la sucursal del proveedor.">🛈</span>
+                </label>
                 <input 
                   type="text"
                   maxLength={25}
@@ -443,7 +466,10 @@ export default function Proveedores() {
                 />
               </div>
               <div className="form-group">
-                <label>Lugar / Extensión *</label>
+                <label>
+                  Lugar / Extensión *
+                  <span className="text-blue-500 cursor-help ml-1" title="Lugar de expedición del documento de identidad (ej: LP, SC, CB).">🛈</span>
+                </label>
                 <input 
                   type="text" 
                   maxLength={3} 

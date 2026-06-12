@@ -23,6 +23,10 @@ const GET_MI_CUENTA_DATA = gql`
       }
     }
     misPermisos
+    oficinasACargo {
+      codOfic
+      desDpto
+    }
   }
 `;
 
@@ -148,6 +152,18 @@ export default function MiCuenta() {
                         {user?.esAdmin ? 'Administrador' : 'Personal'}
                       </span>
                     </div>
+                    {data?.oficinasACargo && data.oficinasACargo.length > 0 && (
+                      <div className="profile-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '8px', borderTop: '1px solid var(--border)', paddingTop: '12px', marginTop: '4px' }}>
+                        <span className="profile-label">Encargado de las Oficinas/Unidades:</span>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                          {data.oficinasACargo.map((o: any) => (
+                            <span key={o.codOfic} style={{ background: 'var(--blue-pale)', color: 'var(--blue)', fontSize: '0.75rem', padding: '4px 8px', borderRadius: '6px', fontWeight: 600 }}>
+                              🏢 {o.desDpto}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </>
                 )}
               </div>

@@ -36,7 +36,6 @@ export default function Depreciaciones() {
   const { data: mainData, loading, error, refetch } = useQuery(GET_DEPRECIACIONES_DATA);
   const [calcularDepMasiva, { loading: calcLoading }] = useMutation(CALCULAR_DEP_MASIVA);
 
-  if (loading) return <div className="loading">Cargando depreciaciones...</div>;
   if (error) return <div className="error">Error: {error.message}</div>;
 
   if (!puedeVer) {
@@ -93,32 +92,32 @@ export default function Depreciaciones() {
       {/* Stats Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(165px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
         <div className="stat-card">
-          <div className="stat-value">{todosActivos.length}</div>
+          <div className="stat-value">{loading ? '...' : todosActivos.length}</div>
           <div className="stat-label">Activos Totales</div>
         </div>
         <div className="stat-card">
-          <div className="stat-value" style={{ color: '#10b981' }}>{activosConDep}</div>
+          <div className="stat-value" style={{ color: '#10b981' }}>{loading ? '...' : activosConDep}</div>
           <div className="stat-label">Con Depreciación</div>
         </div>
         <div className="stat-card">
-          <div className="stat-value" style={{ color: '#f59e0b' }}>{activosSinDep}</div>
+          <div className="stat-value" style={{ color: '#f59e0b' }}>{loading ? '...' : activosSinDep}</div>
           <div className="stat-label">Sin Depreciación</div>
         </div>
         <div className="stat-card">
           <div className="stat-value" style={{ fontSize: '0.95rem', color: '#1a3c6e' }}>
-            Bs. {costoOriginal.toLocaleString('es-BO', { minimumFractionDigits: 2 })}
+            {loading ? 'Bs. ...' : `Bs. ${costoOriginal.toLocaleString('es-BO', { minimumFractionDigits: 2 })}`}
           </div>
           <div className="stat-label">Costo Original</div>
         </div>
         <div className="stat-card">
           <div className="stat-value" style={{ fontSize: '0.95rem', color: '#ef4444' }}>
-            Bs. {depAcum.toLocaleString('es-BO', { minimumFractionDigits: 2 })}
+            {loading ? 'Bs. ...' : `Bs. ${depAcum.toLocaleString('es-BO', { minimumFractionDigits: 2 })}`}
           </div>
           <div className="stat-label">Dep. Acumulada</div>
         </div>
         <div className="stat-card">
           <div className="stat-value" style={{ fontSize: '0.95rem', color: '#059669' }}>
-            Bs. {valorLibros.toLocaleString('es-BO', { minimumFractionDigits: 2 })}
+            {loading ? 'Bs. ...' : `Bs. ${valorLibros.toLocaleString('es-BO', { minimumFractionDigits: 2 })}`}
           </div>
           <div className="stat-label">Valor en Libros</div>
         </div>
@@ -131,12 +130,18 @@ export default function Depreciaciones() {
         </h3>
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <div className="form-group" style={{ marginBottom: 0 }}>
-            <label>Gestión (Año)</label>
+            <label>
+              Gestión (Año)
+              <span className="text-blue-500 cursor-help ml-1" title="El año fiscal para el cual se correrá el proceso de depreciación.">🛈</span>
+            </label>
             <input type="number" value={gestion} onChange={e => setGestion(parseInt(e.target.value))}
               min={2000} max={2100} style={{ width: '110px' }} disabled={!puedeCalcular} />
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
-            <label>Período (Mes)</label>
+            <label>
+              Período (Mes)
+              <span className="text-blue-500 cursor-help ml-1" title="El mes específico del año fiscal seleccionado para realizar el cálculo.">🛈</span>
+            </label>
             <select value={periodo} onChange={e => setPeriodo(parseInt(e.target.value))} style={{ width: '150px' }} disabled={!puedeCalcular}>
               {MESES.map((m, idx) => (
                 <option key={idx + 1} value={idx + 1}>{m}</option>
@@ -218,41 +223,60 @@ export default function Depreciaciones() {
               </tr>
             </thead>
             <tbody>
-              {filteredDep.length === 0 && (
-                <tr><td colSpan={9} className="empty">No hay registros de depreciación. Use el panel superior para calcular.</td></tr>
-              )}
-              {filteredDep.map((d: any) => {
-                const costo = parseFloat(d.valorRevaluo || 0);
-                const acum = parseFloat(d.acumulada || 0);
-                const pct = costo > 0 ? Math.min((acum / costo) * 100, 100) : 0;
-                return (
-                  <tr key={`${d.nroSerie}-${d.nroActivo?.nroActivo}`}>
-                    <td><strong>{d.nroActivo?.codActivo}</strong></td>
-                    <td style={{ maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {d.nroActivo?.descripcion}
-                    </td>
-                    <td><span className="badge badge-info">{d.nroActivo?.codGrupo?.desGrupo}</span></td>
-                    <td><span style={{ fontSize: '0.78rem', color: '#64748b' }}>{formatPeriodo(d.nroSerie)}</span></td>
-                    <td style={{ textAlign: 'right' }}>Bs. {costo.toLocaleString('es-BO', { minimumFractionDigits: 2 })}</td>
-                    <td style={{ textAlign: 'right', color: '#ef4444' }}>Bs. {parseFloat(d.depresiacion || 0).toLocaleString('es-BO', { minimumFractionDigits: 2 })}</td>
-                    <td style={{ textAlign: 'right', color: '#dc2626' }}>Bs. {acum.toLocaleString('es-BO', { minimumFractionDigits: 2 })}</td>
-                    <td style={{ textAlign: 'right', color: '#059669', fontWeight: 700 }}>
-                      Bs. {parseFloat(d.valorActual || 0).toLocaleString('es-BO', { minimumFractionDigits: 2 })}
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <div style={{ flex: 1, height: '8px', borderRadius: '4px', background: '#e2e8f0', overflow: 'hidden' }}>
-                          <div style={{
-                            height: '100%', borderRadius: '4px', width: `${pct}%`,
-                            background: pct >= 90 ? '#ef4444' : pct >= 60 ? '#f59e0b' : '#10b981'
-                          }} />
-                        </div>
-                        <span style={{ fontSize: '0.72rem', minWidth: '36px' }}>{pct.toFixed(1)}%</span>
-                      </div>
-                    </td>
+              {loading ? (
+                Array.from({ length: 5 }).map((_, idx) => (
+                  <tr key={idx} className="animate-pulse">
+                    <td><div className="h-4 bg-gray-200 rounded w-16"></div></td>
+                    <td><div className="h-4 bg-gray-200 rounded w-32"></div></td>
+                    <td><div className="h-4 bg-gray-200 rounded w-20"></div></td>
+                    <td><div className="h-4 bg-gray-200 rounded w-16"></div></td>
+                    <td><div className="h-4 bg-gray-200 rounded w-24"></div></td>
+                    <td><div className="h-4 bg-gray-200 rounded w-24"></div></td>
+                    <td><div className="h-4 bg-gray-200 rounded w-24"></div></td>
+                    <td><div className="h-4 bg-gray-200 rounded w-24"></div></td>
+                    <td><div className="h-4 bg-gray-200 rounded w-28"></div></td>
                   </tr>
-                );
-              })}
+                ))
+              ) : filteredDep.length === 0 ? (
+                <tr><td colSpan={9} className="empty">No hay registros de depreciación. Use el panel superior para calcular.</td></tr>
+              ) : (
+                filteredDep.map((d: any) => {
+                  const costo = parseFloat(d.valorRevaluo || 0);
+                  const acum = parseFloat(d.acumulada || 0);
+                  const pct = costo > 0 ? Math.min((acum / costo) * 100, 100) : 0;
+                  return (
+                    <tr key={`${d.nroSerie}-${d.nroActivo?.nroActivo}`}>
+                      <td><strong>{d.nroActivo?.codActivo}</strong></td>
+                      <td
+                        style={{ maxWidth: '180px' }}
+                        className="truncate"
+                        title={d.nroActivo?.descripcion}
+                      >
+                        {d.nroActivo?.descripcion}
+                      </td>
+                      <td><span className="badge badge-info">{d.nroActivo?.codGrupo?.desGrupo}</span></td>
+                      <td><span style={{ fontSize: '0.78rem', color: '#64748b' }}>{formatPeriodo(d.nroSerie)}</span></td>
+                      <td style={{ textAlign: 'right' }}>Bs. {costo.toLocaleString('es-BO', { minimumFractionDigits: 2 })}</td>
+                      <td style={{ textAlign: 'right', color: '#ef4444' }}>Bs. {parseFloat(d.depresiacion || 0).toLocaleString('es-BO', { minimumFractionDigits: 2 })}</td>
+                      <td style={{ textAlign: 'right', color: '#dc2626' }}>Bs. {acum.toLocaleString('es-BO', { minimumFractionDigits: 2 })}</td>
+                      <td style={{ textAlign: 'right', color: '#059669', fontWeight: 700 }}>
+                        Bs. {parseFloat(d.valorActual || 0).toLocaleString('es-BO', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <div style={{ flex: 1, height: '8px', borderRadius: '4px', background: '#e2e8f0', overflow: 'hidden' }}>
+                            <div style={{
+                              height: '100%', borderRadius: '4px', width: `${pct}%`,
+                              background: pct >= 90 ? '#ef4444' : pct >= 60 ? '#f59e0b' : '#10b981'
+                            }} />
+                          </div>
+                          <span style={{ fontSize: '0.72rem', minWidth: '36px' }}>{pct.toFixed(1)}%</span>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
@@ -279,29 +303,48 @@ export default function Depreciaciones() {
                 </tr>
               </thead>
               <tbody>
-                {mainData?.todosActivos?.length === 0 && (
-                  <tr><td colSpan={7} className="empty">No hay activos registrados para depreciar</td></tr>
-                )}
-                {mainData?.todosActivos?.map((a: any) => {
-                  const monto = a.monto || 0;
-                  const tasa = a.codGrupo?.tasaDepreciacion || 0;
-                  const depMensual = (monto * tasa) / 100 / 12;
-                  const isSelected = selectedAsset?.nroActivo === a.nroActivo;
-                  return (
-                    <tr key={a.nroActivo} onClick={() => setSelectedAsset(a)}
-                      style={{ cursor: 'pointer', background: isSelected ? '#e8f4fd' : 'white' }}>
-                      <td><strong>{a.codActivo}</strong></td>
-                      <td style={{ maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.descripcion}</td>
-                      <td><span className="badge badge-info">{a.codGrupo?.desGrupo || '-'}</span></td>
-                      <td><strong>{monto.toLocaleString('es-BO', { minimumFractionDigits: 2 })} Bs.</strong></td>
-                      <td>{tasa > 0 ? `${tasa}%` : '-'}</td>
-                      <td>{depMensual > 0 ? `${depMensual.toLocaleString('es-BO', { minimumFractionDigits: 2 })} Bs.` : '0.00 Bs.'}</td>
-                      <td onClick={e => e.stopPropagation()}>
-                        <button className="btn btn-primary btn-sm" onClick={() => setSelectedAsset(a)}>Ver Detalle</button>
-                      </td>
+                {loading ? (
+                  Array.from({ length: 5 }).map((_, idx) => (
+                    <tr key={idx} className="animate-pulse">
+                      <td><div className="h-4 bg-gray-200 rounded w-16"></div></td>
+                      <td><div className="h-4 bg-gray-200 rounded w-32"></div></td>
+                      <td><div className="h-4 bg-gray-200 rounded w-20"></div></td>
+                      <td><div className="h-4 bg-gray-200 rounded w-24"></div></td>
+                      <td><div className="h-4 bg-gray-200 rounded w-12"></div></td>
+                      <td><div className="h-4 bg-gray-200 rounded w-24"></div></td>
+                      <td><div className="h-8 bg-gray-200 rounded w-20"></div></td>
                     </tr>
-                  );
-                })}
+                  ))
+                ) : mainData?.todosActivos?.length === 0 ? (
+                  <tr><td colSpan={7} className="empty">No hay activos registrados para depreciar</td></tr>
+                ) : (
+                  mainData?.todosActivos?.map((a: any) => {
+                    const monto = a.monto || 0;
+                    const tasa = a.codGrupo?.tasaDepreciacion || 0;
+                    const depMensual = (monto * tasa) / 100 / 12;
+                    const isSelected = selectedAsset?.nroActivo === a.nroActivo;
+                    return (
+                      <tr key={a.nroActivo} onClick={() => setSelectedAsset(a)}
+                        style={{ cursor: 'pointer', background: isSelected ? '#e8f4fd' : 'white' }}>
+                        <td><strong>{a.codActivo}</strong></td>
+                        <td
+                          style={{ maxWidth: '180px' }}
+                          className="truncate"
+                          title={a.descripcion}
+                        >
+                          {a.descripcion}
+                        </td>
+                        <td><span className="badge badge-info">{a.codGrupo?.desGrupo || '-'}</span></td>
+                        <td><strong>{monto.toLocaleString('es-BO', { minimumFractionDigits: 2 })} Bs.</strong></td>
+                        <td>{tasa > 0 ? `${tasa}%` : '-'}</td>
+                        <td>{depMensual > 0 ? `${depMensual.toLocaleString('es-BO', { minimumFractionDigits: 2 })} Bs.` : '0.00 Bs.'}</td>
+                        <td onClick={e => e.stopPropagation()}>
+                          <button className="btn btn-primary btn-sm" onClick={() => setSelectedAsset(a)}>Ver Detalle</button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
@@ -349,10 +392,20 @@ export default function Depreciaciones() {
 function AssetDepList({ asset, formatPeriodo }: { asset: any; formatPeriodo: (n: number) => string }) {
   const { data, loading, error } = useQuery(GET_DEP_ACUMULADA, {
     variables: { nroActivo: parseInt(asset.nroActivo) },
-    fetchPolicy: 'network-only'
   });
 
-  if (loading) return <div style={{ fontSize: '0.85rem', color: '#64748b' }}>Cargando tabla de depreciación...</div>;
+  if (loading) {
+    return (
+      <div className="animate-pulse">
+        <div className="h-4 bg-gray-200 rounded w-48 mb-2"></div>
+        <div className="space-y-2">
+          <div className="h-8 bg-gray-200 rounded"></div>
+          <div className="h-8 bg-gray-200 rounded"></div>
+          <div className="h-8 bg-gray-200 rounded"></div>
+        </div>
+      </div>
+    );
+  }
   if (error) return <div style={{ fontSize: '0.85rem', color: '#ef4444' }}>Error: {error.message}</div>;
 
   const realRecords = data?.depAcumuladaPorActivo || [];

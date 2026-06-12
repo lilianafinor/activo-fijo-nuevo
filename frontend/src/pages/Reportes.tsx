@@ -1075,7 +1075,15 @@ export default function Reportes() {
                 Maximizar
               </button>
             </div>
-            <InventarioGrupoChart data={inventarioChartData} />
+            <InventarioGrupoChart
+              data={inventarioChartData}
+              onBarClick={(label) => {
+                const matchedGrp = grupos.find((g: any) => g.desGrupo === label);
+                if (matchedGrp) {
+                  setFilterInvGrupo(matchedGrp.codGrupo.toString());
+                }
+              }}
+            />
           </div>
         ) : null;
       case 'depreciacion':
@@ -1087,7 +1095,15 @@ export default function Reportes() {
                 Maximizar
               </button>
             </div>
-            <DepreciacionGrupoChart data={depreciacionChartData} />
+            <DepreciacionGrupoChart
+              data={depreciacionChartData}
+              onBarClick={(label) => {
+                const matchedGrp = grupos.find((g: any) => g.desGrupo === label);
+                if (matchedGrp) {
+                  setFilterDepGrupo(matchedGrp.codGrupo.toString());
+                }
+              }}
+            />
           </div>
         ) : null;
       case 'asignacion':
@@ -1099,7 +1115,15 @@ export default function Reportes() {
                 Maximizar
               </button>
             </div>
-            <AsignacionOficinaChart data={asignacionChartData} />
+            <AsignacionOficinaChart
+              data={asignacionChartData}
+              onBarClick={(label) => {
+                const matchedOfi = oficinas.find((o: any) => o.desDpto === label);
+                if (matchedOfi) {
+                  setFilterAsigOficina(matchedOfi.codOfic.toString());
+                }
+              }}
+            />
           </div>
         ) : null;
       case 'transferencia':
@@ -1111,7 +1135,15 @@ export default function Reportes() {
                 Maximizar
               </button>
             </div>
-            <EstadoReporteChart data={transferenciaChartData} />
+            <EstadoReporteChart
+              data={transferenciaChartData}
+              onSliceClick={(label) => {
+                const map: Record<string, string> = { 'Pendiente': 'P', 'Aprobada': 'A', 'Completada': 'C', 'Rechazada': 'R' };
+                if (map[label]) {
+                  setFilterTransfEstado(map[label]);
+                }
+              }}
+            />
           </div>
         ) : null;
       case 'solicitud':
@@ -1123,7 +1155,15 @@ export default function Reportes() {
                 Maximizar
               </button>
             </div>
-            <EstadoReporteChart data={solicitudChartData} />
+            <EstadoReporteChart
+              data={solicitudChartData}
+              onSliceClick={(label) => {
+                const map: Record<string, string> = { 'Pendiente': 'A', 'Aprobada': 'P', 'Rechazada': 'R', 'Anulada': 'B' };
+                if (map[label]) {
+                  setFilterSolEstado(map[label]);
+                }
+              }}
+            />
           </div>
         ) : null;
       case 'bajas':
@@ -1135,7 +1175,12 @@ export default function Reportes() {
                 Maximizar
               </button>
             </div>
-            <BajaGrupoChart data={bajasChartData} />
+            <BajaGrupoChart
+              data={bajasChartData}
+              onBarClick={(label) => {
+                setFilterBajaBusqueda(label);
+              }}
+            />
           </div>
         ) : null;
       default:
@@ -1169,17 +1214,80 @@ export default function Reportes() {
   const renderMaximizedChart = (type: string) => {
     switch (type) {
       case 'inventario':
-        return <InventarioGrupoChart data={inventarioChartData} />;
+        return (
+          <InventarioGrupoChart
+            data={inventarioChartData}
+            onBarClick={(label) => {
+              const matchedGrp = grupos.find((g: any) => g.desGrupo === label);
+              if (matchedGrp) {
+                setFilterInvGrupo(matchedGrp.codGrupo.toString());
+                setMaximizedChart(null);
+              }
+            }}
+          />
+        );
       case 'depreciacion':
-        return <DepreciacionGrupoChart data={depreciacionChartData} />;
+        return (
+          <DepreciacionGrupoChart
+            data={depreciacionChartData}
+            onBarClick={(label) => {
+              const matchedGrp = grupos.find((g: any) => g.desGrupo === label);
+              if (matchedGrp) {
+                setFilterDepGrupo(matchedGrp.codGrupo.toString());
+                setMaximizedChart(null);
+              }
+            }}
+          />
+        );
       case 'asignacion':
-        return <AsignacionOficinaChart data={asignacionChartData} />;
+        return (
+          <AsignacionOficinaChart
+            data={asignacionChartData}
+            onBarClick={(label) => {
+              const matchedOfi = oficinas.find((o: any) => o.desDpto === label);
+              if (matchedOfi) {
+                setFilterAsigOficina(matchedOfi.codOfic.toString());
+                setMaximizedChart(null);
+              }
+            }}
+          />
+        );
       case 'transferencia':
-        return <EstadoReporteChart data={transferenciaChartData} />;
+        return (
+          <EstadoReporteChart
+            data={transferenciaChartData}
+            onSliceClick={(label) => {
+              const map: Record<string, string> = { 'Pendiente': 'P', 'Aprobada': 'A', 'Completada': 'C', 'Rechazada': 'R' };
+              if (map[label]) {
+                setFilterTransfEstado(map[label]);
+                setMaximizedChart(null);
+              }
+            }}
+          />
+        );
       case 'solicitud':
-        return <EstadoReporteChart data={solicitudChartData} />;
+        return (
+          <EstadoReporteChart
+            data={solicitudChartData}
+            onSliceClick={(label) => {
+              const map: Record<string, string> = { 'Pendiente': 'A', 'Aprobada': 'P', 'Rechazada': 'R', 'Anulada': 'B' };
+              if (map[label]) {
+                setFilterSolEstado(map[label]);
+                setMaximizedChart(null);
+              }
+            }}
+          />
+        );
       case 'bajas':
-        return <BajaGrupoChart data={bajasChartData} />;
+        return (
+          <BajaGrupoChart
+            data={bajasChartData}
+            onBarClick={(label) => {
+              setFilterBajaBusqueda(label);
+              setMaximizedChart(null);
+            }}
+          />
+        );
       default:
         return null;
     }
@@ -1930,7 +2038,7 @@ export default function Reportes() {
 }
 
 // ==================== COMPONENTES GRÁFICOS ESPECIALIZADOS SVG NATIVOS ====================
-function InventarioGrupoChart({ data }: { data: any[] }) {
+function InventarioGrupoChart({ data, onBarClick }: { data: any[]; onBarClick?: (label: string) => void }) {
   const maxVal = Math.max(...data.map(d => d.valor), 100);
   
   const formatBs = (v: number) => {
@@ -1946,13 +2054,27 @@ function InventarioGrupoChart({ data }: { data: any[] }) {
 
   return (
     <div style={{ width: '100%', overflowX: 'auto' }}>
+      <style>{`
+        .clickable-svg-bar {
+          transition: all 0.2s ease-in-out;
+        }
+        .clickable-svg-bar:hover rect.val-rect {
+          fill-opacity: 0.85;
+          filter: brightness(1.25);
+        }
+        .clickable-svg-bar:hover text.lbl-text {
+          fill: #000000 !important;
+          font-weight: 800 !important;
+        }
+      `}</style>
       <svg width="100%" height={svgHeight} viewBox={`0 0 ${svgWidth} ${svgHeight}`} style={{ overflow: 'visible' }}>
         {data.map((d, i) => {
           const barWidth = (d.valor / maxVal) * barMaxWidth;
           const y = i * rowHeight + 10;
           return (
-            <g key={i}>
+            <g key={i} className="clickable-svg-bar" style={{ cursor: 'pointer' }} onClick={() => onBarClick?.(d.label)}>
               <text
+                className="lbl-text"
                 x={labelWidth - 10}
                 y={y + 14}
                 textAnchor="end"
@@ -1971,6 +2093,7 @@ function InventarioGrupoChart({ data }: { data: any[] }) {
                 rx="2"
               />
               <rect
+                className="val-rect"
                 x={labelWidth}
                 y={y + 4}
                 width={Math.max(barWidth, 2)}
@@ -1996,7 +2119,7 @@ function InventarioGrupoChart({ data }: { data: any[] }) {
   );
 }
 
-function DepreciacionGrupoChart({ data }: { data: any[] }) {
+function DepreciacionGrupoChart({ data, onBarClick }: { data: any[]; onBarClick?: (label: string) => void }) {
   const chartData = data.slice(0, 5); // top 5
   const maxVal = Math.max(...chartData.map(d => Math.max(d.costo, d.depreciacion)), 100);
 
@@ -2019,6 +2142,18 @@ function DepreciacionGrupoChart({ data }: { data: any[] }) {
 
   return (
     <div style={{ width: '100%', overflowX: 'auto' }}>
+      <style>{`
+        .clickable-svg-bar-dep {
+          transition: all 0.2s ease-in-out;
+        }
+        .clickable-svg-bar-dep:hover rect {
+          filter: brightness(1.25);
+        }
+        .clickable-svg-bar-dep:hover text.lbl-text {
+          fill: #000000 !important;
+          font-weight: 800 !important;
+        }
+      `}</style>
       <svg width="100%" height={svgHeight} viewBox={`0 0 ${svgWidth} ${svgHeight}`} style={{ overflow: 'visible' }}>
         {[0, 0.25, 0.5, 0.75, 1].map((ratio, index) => {
           const y = paddingTop + chartHeight - ratio * chartHeight;
@@ -2063,7 +2198,7 @@ function DepreciacionGrupoChart({ data }: { data: any[] }) {
           const depY = paddingTop + chartHeight - depHeight;
 
           return (
-            <g key={i}>
+            <g key={i} className="clickable-svg-bar-dep" style={{ cursor: 'pointer' }} onClick={() => onBarClick?.(c.label)}>
               <rect
                 x={x}
                 y={costoY}
@@ -2081,6 +2216,7 @@ function DepreciacionGrupoChart({ data }: { data: any[] }) {
                 rx="1"
               />
               <text
+                className="lbl-text"
                 x={x + barWidth}
                 y={paddingTop + chartHeight + 12}
                 textAnchor="middle"
@@ -2098,7 +2234,7 @@ function DepreciacionGrupoChart({ data }: { data: any[] }) {
   );
 }
 
-function AsignacionOficinaChart({ data }: { data: any[] }) {
+function AsignacionOficinaChart({ data, onBarClick }: { data: any[]; onBarClick?: (label: string) => void }) {
   const maxVal = Math.max(...data.map(d => d.valor), 100);
   
   const formatBs = (v: number) => {
@@ -2114,13 +2250,27 @@ function AsignacionOficinaChart({ data }: { data: any[] }) {
 
   return (
     <div style={{ width: '100%', overflowX: 'auto' }}>
+      <style>{`
+        .clickable-svg-bar-asig {
+          transition: all 0.2s ease-in-out;
+        }
+        .clickable-svg-bar-asig:hover rect.val-rect {
+          fill-opacity: 0.85;
+          filter: brightness(1.25);
+        }
+        .clickable-svg-bar-asig:hover text.lbl-text {
+          fill: #000000 !important;
+          font-weight: 800 !important;
+        }
+      `}</style>
       <svg width="100%" height={svgHeight} viewBox={`0 0 ${svgWidth} ${svgHeight}`} style={{ overflow: 'visible' }}>
         {data.map((d, i) => {
           const barWidth = (d.valor / maxVal) * barMaxWidth;
           const y = i * rowHeight + 10;
           return (
-            <g key={i}>
+            <g key={i} className="clickable-svg-bar-asig" style={{ cursor: 'pointer' }} onClick={() => onBarClick?.(d.label)}>
               <text
+                className="lbl-text"
                 x={labelWidth - 10}
                 y={y + 14}
                 textAnchor="end"
@@ -2139,6 +2289,7 @@ function AsignacionOficinaChart({ data }: { data: any[] }) {
                 rx="2"
               />
               <rect
+                className="val-rect"
                 x={labelWidth}
                 y={y + 4}
                 width={Math.max(barWidth, 2)}
@@ -2164,7 +2315,7 @@ function AsignacionOficinaChart({ data }: { data: any[] }) {
   );
 }
 
-function EstadoReporteChart({ data }: { data: any[] }) {
+function EstadoReporteChart({ data, onSliceClick }: { data: any[]; onSliceClick?: (label: string) => void }) {
   const total = data.reduce((acc, curr) => acc + curr.count, 0);
   if (total === 0) return null;
 
@@ -2175,6 +2326,24 @@ function EstadoReporteChart({ data }: { data: any[] }) {
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '2rem', justifyContent: 'center', flexWrap: 'wrap', width: '100%' }}>
+      <style>{`
+        .clickable-svg-slice {
+          transition: all 0.25s ease-in-out;
+          transform-origin: center;
+        }
+        .clickable-svg-slice:hover {
+          stroke-width: 14.5px;
+          filter: brightness(1.2);
+        }
+        .clickable-legend-row {
+          transition: all 0.2s ease;
+          padding: 3px 8px;
+          border-radius: 4px;
+        }
+        .clickable-legend-row:hover {
+          background-color: #f1f5f9;
+        }
+      `}</style>
       <div style={{ position: 'relative', width: '130px', height: '130px' }}>
         <svg width="100%" height="100%" viewBox="0 0 100 100" style={{ transform: 'rotate(-90deg)' }}>
           <circle
@@ -2194,6 +2363,7 @@ function EstadoReporteChart({ data }: { data: any[] }) {
             return (
               <circle
                 key={i}
+                className="clickable-svg-slice"
                 cx="50"
                 cy="50"
                 r={radius}
@@ -2202,7 +2372,8 @@ function EstadoReporteChart({ data }: { data: any[] }) {
                 strokeWidth={strokeWidth}
                 strokeDasharray={`${length} ${circumference}`}
                 strokeDashoffset={offset}
-                style={{ transition: 'stroke-dasharray 0.5s ease' }}
+                style={{ transition: 'stroke-dasharray 0.5s ease', cursor: 'pointer' }}
+                onClick={() => onSliceClick?.(d.label)}
               />
             );
           })}
@@ -2224,7 +2395,7 @@ function EstadoReporteChart({ data }: { data: any[] }) {
         {data.map((d, i) => {
           const pct = ((d.count / total) * 100).toFixed(1);
           return (
-            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div key={i} className="clickable-legend-row" style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }} onClick={() => onSliceClick?.(d.label)}>
               <div style={{ width: '12px', height: '12px', background: d.color }}></div>
               <span style={{ fontWeight: 'bold', color: '#2d3748' }}>{d.label}:</span>
               <span style={{ marginLeft: 'auto', fontFamily: 'monospace' }}>{d.count} ({pct}%)</span>
@@ -2236,7 +2407,7 @@ function EstadoReporteChart({ data }: { data: any[] }) {
   );
 }
 
-function BajaGrupoChart({ data }: { data: any[] }) {
+function BajaGrupoChart({ data, onBarClick }: { data: any[]; onBarClick?: (label: string) => void }) {
   const chartData = data.slice(0, 5); // top 5
   const maxVal = Math.max(...chartData.map(d => d.valor), 100);
 
@@ -2258,6 +2429,18 @@ function BajaGrupoChart({ data }: { data: any[] }) {
 
   return (
     <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', overflowX: 'auto' }}>
+      <style>{`
+        .clickable-svg-bar-baja {
+          transition: all 0.2s ease-in-out;
+        }
+        .clickable-svg-bar-baja:hover rect {
+          filter: brightness(1.25);
+        }
+        .clickable-svg-bar-baja:hover text.lbl-text {
+          fill: #000000 !important;
+          font-weight: 800 !important;
+        }
+      `}</style>
       <svg width="100%" height={svgHeight} viewBox={`0 0 ${svgWidth} ${svgHeight}`} style={{ overflow: 'visible' }}>
         {[0, 0.25, 0.5, 0.75, 1].map((ratio, index) => {
           const y = paddingTop + chartHeight - ratio * chartHeight;
@@ -2293,7 +2476,7 @@ function BajaGrupoChart({ data }: { data: any[] }) {
           const y = paddingTop + chartHeight - barHeight;
 
           return (
-            <g key={i}>
+            <g key={i} className="clickable-svg-bar-baja" style={{ cursor: 'pointer' }} onClick={() => onBarClick?.(c.label)}>
               <rect
                 x={x}
                 y={y}
@@ -2313,6 +2496,7 @@ function BajaGrupoChart({ data }: { data: any[] }) {
                 {c.valor >= 1000 ? `${(c.valor / 1000).toFixed(0)}k` : c.valor.toFixed(0)}
               </text>
               <text
+                className="lbl-text"
                 x={x + barWidth / 2}
                 y={paddingTop + chartHeight + 12}
                 textAnchor="middle"

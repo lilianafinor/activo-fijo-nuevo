@@ -3,6 +3,7 @@ import React, { useState, useMemo, useCallback } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
 import { useAuth } from '../context/AuthContext';
 import { GET_ASIGNACIONES_PAGINADAS } from '../graphql/queries';
+import { QRCodeImage, Code39Barcode } from '../utils/barcodes';
 
 const GET_CATS = gql`
   query GetCats {
@@ -155,6 +156,10 @@ export default function Asignaciones() {
   const [showTiposModal, setShowTiposModal] = useState(false);
   const [formTipoAsig, setFormTipoAsig] = useState({ tipoAsig: '', des: '', abrev: '' });
 
+  // Bulk Print states
+  const [printAssetsList, setPrintAssetsList] = useState<any[] | null>(null);
+  const [printLocationName, setPrintLocationName] = useState<string>('');
+
   const { data, loading, error, refetch } = useQuery(GET_ASIGNACIONES_PAGINADAS, {
     variables: {
       limit: ITEMS_POR_PAGINA,
@@ -272,13 +277,13 @@ export default function Asignaciones() {
       if (String(currentAsig.codOfic?.codOfic) === String(form.codOfic)) {
         return {
           status: 'warning',
-          message: `⚠️ Ya asignado a esta oficina`,
+          message: `Ya asignado a esta oficina`,
           isCritical: false
         };
       } else {
         return {
           status: 'danger',
-          message: `❌ Asignado en: ${officeName} [${officeCode}]`,
+          message: `Asignado en: ${officeName} [${officeCode}]`,
           isCritical: true
         };
       }
@@ -286,7 +291,7 @@ export default function Asignaciones() {
 
     return {
       status: 'success',
-      message: '✅ Disponible',
+      message: 'Disponible',
       isCritical: false
     };
   }, [data, form.codOfic]);
@@ -309,7 +314,7 @@ export default function Asignaciones() {
           abrev: formTipoAsig.abrev
         }
       });
-      alert('✅ Tipo de asignación creado con éxito.');
+      alert('Tipo de asignación creado con éxito.');
       setFormTipoAsig({ tipoAsig: '', des: '', abrev: '' });
       refetchCats();
     } catch (e: any) {
@@ -373,7 +378,7 @@ export default function Asignaciones() {
       setOficinaSearch('');
       setRespSearch('');
       refetch();
-      alert('✅ Asignación masiva creada correctamente.');
+      alert('Asignación masiva creada correctamente.');
     } catch (e: any) {
       setGuardando(false);
       alert('Error: ' + e.message);
@@ -399,6 +404,23 @@ export default function Asignaciones() {
     }
   };
 
+  const handlePrintOficina = (location: string, list: any[]) => {
+    const assetsToPrint: any[] = [];
+    list.forEach(asig => {
+      if (asig.estado === 'A' && asig.inDetAsigSet) {
+        asig.inDetAsigSet.forEach((det: any) => {
+          assetsToPrint.push(det.nroActivo);
+        });
+      }
+    });
+    if (assetsToPrint.length === 0) {
+      alert("No hay activos asignados vigentes en esta oficina.");
+      return;
+    }
+    setPrintLocationName(location);
+    setPrintAssetsList(assetsToPrint);
+  };
+
   const abrirNuevo = () => {
     setActivosSeleccionados([]);
     setForm({
@@ -413,7 +435,6 @@ export default function Asignaciones() {
     setShowModal(true);
   };
 
-  if (loading) return <div className="loading">Cargando asignaciones...</div>;
   if (error) return <div className="error">Error: {error.message}</div>;
 
   return (
@@ -428,7 +449,7 @@ export default function Asignaciones() {
       ]}
     >
       {/* Filtros */}
-      <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-3 mb-6">
+      <div className="bg-white border border-slate-200 rounded-xl p-3 mb-6 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="flex-1 autocomplete-container">
             <input
@@ -442,16 +463,16 @@ export default function Asignaciones() {
               }}
               onFocus={() => setShowOficinaFilterDropdown(true)}
               onBlur={() => setTimeout(() => setShowOficinaFilterDropdown(false), 200)}
-              className="w-full px-4 py-2 bg-slate-900/50 border border-slate-700/50 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:border-blue-500/50 transition-all text-sm"
+              className="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all text-sm"
             />
             {showOficinaFilterDropdown && (
-              <ul className="autocomplete-dropdown" style={{ background: '#1e293b', borderColor: '#334155' }}>
+              <ul className="autocomplete-dropdown" style={{ background: '#ffffff', borderColor: '#e2e8f0' }}>
                 {filteredOficinasFilter.slice(0, 15).map((o: any) => {
                   const unified = getOfficeUnifiedCode(o);
                   return (
                     <li
                       key={o.codOfic}
-                      className="autocomplete-item hover:bg-slate-700 text-slate-200 border-slate-700/50"
+                      className="autocomplete-item hover:bg-slate-50 text-slate-700 border-slate-100"
                       onClick={() => handleSelectOficinaFilter(o)}
                     >
                       [{unified}] {o.desDpto}
@@ -459,7 +480,7 @@ export default function Asignaciones() {
                   );
                 })}
                 {filteredOficinasFilter.length === 0 && (
-                  <li className="autocomplete-no-results text-slate-400">No se encontraron oficinas</li>
+                  <li className="autocomplete-no-results text-slate-500">No se encontraron oficinas</li>
                 )}
               </ul>
             )}
@@ -474,7 +495,24 @@ export default function Asignaciones() {
 
       {/* Listado agrupado por Oficina */}
       <div className="space-y-6">
-        {asignacionesPaginadas.length === 0 ? (
+        {loading ? (
+          Array.from({ length: 2 }).map((_, gIdx) => (
+            <div key={gIdx} className="bg-slate-800 rounded-xl border border-slate-700/60 overflow-hidden shadow-2xl animate-pulse">
+              <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-blue-950/20 border-b border-slate-700/80 border-l-8 border-blue-500 px-6 py-4 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="h-6 w-6 bg-slate-700 rounded-full"></div>
+                  <div className="h-5 bg-slate-700 rounded w-64"></div>
+                </div>
+                <div className="h-6 bg-slate-700 rounded w-24"></div>
+              </div>
+              <div className="p-6 space-y-3">
+                <div className="h-4 bg-slate-700 rounded w-full"></div>
+                <div className="h-4 bg-slate-700/70 rounded w-5/6"></div>
+                <div className="h-4 bg-slate-700/50 rounded w-4/5"></div>
+              </div>
+            </div>
+          ))
+        ) : asignacionesPaginadas.length === 0 ? (
           <div className="bg-slate-800 rounded-xl border border-slate-700 p-12 text-center text-slate-500 shadow-xl">
             No hay asignaciones registradas
           </div>
@@ -499,7 +537,6 @@ export default function Asignaciones() {
                 {/* Barra de Oficina Super Premium */}
                 <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-blue-950/20 border-b border-slate-700/80 border-l-8 border-blue-500 px-6 py-4.5 text-white font-bold text-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-lg">
                   <div className="flex items-center gap-4">
-                    <span className="text-2xl animate-pulse">🏢</span>
                     <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4">
                       <span className="text-xs tracking-widest uppercase bg-blue-600/90 text-blue-50 px-2.5 py-1 rounded border border-blue-400/30 font-extrabold font-mono w-max">
                         Ubicación / Oficina
@@ -509,9 +546,18 @@ export default function Asignaciones() {
                       </span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 bg-slate-900/90 border border-slate-700/50 px-3.5 py-1.5 rounded-lg text-xs font-bold text-slate-300 shadow-inner self-start sm:self-center shrink-0">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <span>{list.length} {list.length === 1 ? 'asignación' : 'asignaciones'}</span>
+                  <div className="flex items-center gap-3 self-start sm:self-center shrink-0">
+                    <button
+                      onClick={() => handlePrintOficina(`[${unified || office.codOfic}] ${path.join(' > ')}`, list)}
+                      className="bg-slate-700/50 hover:bg-slate-600/60 border border-slate-600/50 text-slate-200 px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
+                    >
+                      <span className="font-mono text-lg" style={{ marginRight: '4px' }}>⎙</span>
+                      Etiquetas
+                    </button>
+                    <div className="flex items-center gap-2 bg-slate-900/90 border border-slate-700/50 px-3.5 py-1.5 rounded-lg text-xs font-bold text-slate-300 shadow-inner">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                      <span>{list.length} {list.length === 1 ? 'asignación' : 'asignaciones'}</span>
+                    </div>
                   </div>
                 </div>
                 
@@ -543,7 +589,7 @@ export default function Asignaciones() {
                               <div className="flex flex-col gap-1 max-w-md">
                                 {a.inDetAsigSet?.map((d: any) => (
                                   <div key={d.nroActivo.nroActivo} className="bg-slate-700/50 px-2 py-0.5 rounded border border-slate-600/30 font-mono">
-                                    <span className="text-blue-300">[{d.nroActivo.codActivo}]</span> {d.nroActivo.descripcion}
+                                    <span className="text-blue-300">[{d.nroActivo.codActivo}]</span> <span className="inline-block max-w-[200px] truncate align-bottom" title={d.nroActivo.descripcion}>{d.nroActivo.descripcion}</span>
                                   </div>
                                 ))}
                                 {(!a.inDetAsigSet || a.inDetAsigSet.length === 0) && '-'}
@@ -625,7 +671,15 @@ export default function Asignaciones() {
                 {/* Form grid */}
                 <div className="form-grid">
                   <div className="form-group">
-                    <label>Tipo Asignación *</label>
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <label className="mb-0">Tipo Asignación *</label>
+                      <span 
+                        className="cursor-help text-blue-400 hover:text-blue-300 font-bold font-mono text-[10px] select-none bg-blue-500/10 border border-blue-500/20 w-4 h-4 rounded-full flex items-center justify-center transition-all"
+                        title="Tipo formal de la asignación del bien (ej. Individual, Colectiva, Temporal)."
+                      >
+                        ?
+                      </span>
+                    </div>
                     <select
                       value={form.tipoAsig}
                       onChange={e => setForm({ ...form, tipoAsig: e.target.value })}
@@ -808,8 +862,9 @@ export default function Asignaciones() {
                 </div>
 
                 {hasErrors && (
-                  <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-2.5 rounded-xl text-xs">
-                    ⚠️ Hay activos con error de ubicación (ya están asignados a otra oficina).
+                  <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2">
+                    <span className="text-xl text-amber-500 font-bold">⚠</span>
+                    <span className="text-amber-700 text-sm">Hay activos con error de ubicación (ya están asignados a otra oficina).</span>
                     Por favor, remuévalos antes de poder guardar la asignación.
                   </div>
                 )}
@@ -918,6 +973,186 @@ export default function Asignaciones() {
           </div>
         </div>
       )}
+
+      {/* Bulk Print Modal */}
+      {printAssetsList && (
+        <BulkLabelModal
+          activos={printAssetsList}
+          location={printLocationName}
+          onClose={() => setPrintAssetsList(null)}
+        />
+      )}
     </PageLayout>
+  );
+}
+
+// ==================== BULK LABEL PRINTING MODAL ====================
+function BulkLabelModal({ activos, location, onClose }: { activos: any[]; location: string; onClose: () => void }) {
+  const [printMode, setPrintMode] = useState<'qr' | 'barcode'>('qr');
+
+  const getActivoUsefulLife = (act: any): string => {
+    const activeReval = act.inDetRevalSet?.find((det: any) => det.estado === 'A');
+    if (activeReval) return `${activeReval.vidaUtilAno}a ${activeReval.vidaUtilMes}m`;
+    const defaultYears = act.codGrupo?.vidaUtilDefault;
+    if (defaultYears !== undefined && defaultYears !== null) return `${defaultYears} años`;
+    return 'No definida';
+  };
+
+  const getActivoValues = (act: any) => {
+    const montoCompra = typeof act.monto === 'number' ? act.monto : (parseFloat(act.monto) || 0);
+    const depSet = act.inDepAcumuladaSet || [];
+    let depAcum = 0; let valActual = montoCompra;
+    if (depSet.length > 0) {
+      const sorted = [...depSet].sort((a: any, b: any) => b.nroSerie - a.nroSerie);
+      const latest = sorted[0];
+      if (latest.acumulada !== undefined && latest.acumulada !== null) depAcum = typeof latest.acumulada === 'number' ? latest.acumulada : (parseFloat(latest.acumulada) || 0);
+      if (latest.valorActual !== undefined && latest.valorActual !== null) valActual = typeof latest.valorActual === 'number' ? latest.valorActual : (parseFloat(latest.valorActual) || 0);
+    }
+    return { montoCompra, depAcum, valActual };
+  };
+
+  return (
+    <div
+      className="modal-overlay"
+      style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+      onClick={onClose}
+    >
+      <style>{`
+        @media print {
+          body * { visibility: hidden !important; }
+          #bulk-print-container, #bulk-print-container * { visibility: visible !important; }
+          #bulk-print-container {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            display: block !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: transparent !important;
+          }
+          .print-label {
+            width: 60mm !important;
+            height: 30mm !important;
+            padding: 3mm !important;
+            border: none !important;
+            box-shadow: none !important;
+            page-break-after: always !important;
+            box-sizing: border-box !important;
+            margin: 0 !important;
+            page-break-inside: avoid !important;
+            background: white !important;
+          }
+          .no-print-btn { display: none !important; }
+        }
+      `}</style>
+      
+      <div className="bg-white rounded-xl shadow-2xl p-6 flex flex-col gap-4 max-w-4xl w-[95%] h-[90vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between no-print-btn">
+        <div className="flex items-center gap-2 mb-4">
+          <span className="text-2xl text-slate-800 font-bold">⎙</span>
+          <h2 className="text-xl font-bold text-slate-800">Imprimir {activos.length} Etiquetas</h2>
+        </div>
+          <div className="flex gap-4">
+            <div className="flex bg-slate-100 p-1 rounded-lg">
+              <button
+                onClick={() => setPrintMode('qr')}
+                className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${printMode === 'qr' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}
+              >
+                QR
+              </button>
+              <button
+                onClick={() => setPrintMode('barcode')}
+                className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${printMode === 'barcode' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}
+              >
+                Barras
+              </button>
+            </div>
+            <button className="btn btn-primary px-6" onClick={() => window.print()}>Imprimir ({activos.length})</button>
+            <button className="btn btn-secondary px-6" onClick={onClose}>Cerrar</button>
+          </div>
+        </div>
+
+        <div id="bulk-print-container" className="flex-1 overflow-y-auto bg-slate-100 p-4 rounded-lg flex flex-wrap gap-4 justify-center items-start content-start">
+          {activos.map((activo: any, idx: number) => {
+            const values = getActivoValues(activo);
+            const usefulLife = getActivoUsefulLife(activo);
+            const qrString = [
+              "U.A.G.R.M. - VSIAF 2.0", "----------------------",
+              `CÓDIGO: ${activo.codActivo}`,
+              `DETALLE: ${activo.descripcion}`,
+              `GRUPO: ${activo.codGrupo?.desGrupo || 'Sin Grupo'}`,
+              `UBICACIÓN: ${location}`,
+              `VIDA ÚTIL: ${usefulLife}`,
+              `COMPRA: ${values.montoCompra.toFixed(2)} Bs.`,
+              `DEP. ACUM.: ${values.depAcum.toFixed(2)} Bs.`,
+              `VALOR ACTUAL: ${values.valActual.toFixed(2)} Bs.`
+            ].join('\n');
+
+            return (
+              <div
+                key={idx}
+                className="print-label"
+                style={{
+                  width: '240px',
+                  height: '120px',
+                  border: '2px solid #0f172a',
+                  borderRadius: '6px',
+                  padding: '8px',
+                  boxSizing: 'border-box',
+                  backgroundColor: '#ffffff',
+                  color: '#0f172a',
+                  fontFamily: 'system-ui, sans-serif',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                  position: 'relative'
+                }}
+              >
+                {/* Header */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1.5px solid #0f172a', paddingBottom: '3px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontSize: '9px', fontWeight: 800, color: '#0f172a', textTransform: 'uppercase', letterSpacing: '0.3px' }}>U.A.G.R.M.</span>
+                    <span style={{ fontSize: '6.5px', fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>Activos Fijos</span>
+                  </div>
+                  <span style={{ fontSize: '7.5px', fontWeight: 800, border: '1px solid #0f172a', padding: '1px 3px', borderRadius: '3px', color: '#0f172a' }}>VSIAF 2.0</span>
+                </div>
+
+                {/* Main area: Left metadata, Right QR */}
+                <div style={{ display: 'flex', flex: 1, gap: '6px', marginTop: '5px', overflow: 'hidden' }}>
+                  {/* Left metadata */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <span style={{ fontSize: '5.5px', textTransform: 'uppercase', color: '#64748b', fontWeight: 800, letterSpacing: '0.2px' }}>Código de Activo</span>
+                      <span style={{ fontSize: '9px', fontWeight: 800, color: '#0f172a', fontFamily: 'monospace' }}>{activo.codActivo}</span>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <span style={{ fontSize: '5.5px', textTransform: 'uppercase', color: '#64748b', fontWeight: 800, letterSpacing: '0.2px' }}>Descripción</span>
+                      <span style={{ fontSize: '8px', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#1e293b' }} title={activo.descripcion}>
+                        {activo.descripcion}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Right QR */}
+                  {printMode === 'qr' && (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <QRCodeImage value={qrString} size={60} />
+                    </div>
+                  )}
+                </div>
+
+                {/* Bottom Barcode */}
+                {printMode === 'barcode' && (
+                  <div style={{ borderTop: '1px dashed #0f172a', paddingTop: '3px', marginTop: '3px', display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1 }}>
+                    <Code39Barcode value={activo.codActivo} height={35} showText={false} />
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
   );
 }

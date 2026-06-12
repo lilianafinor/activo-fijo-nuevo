@@ -1,10 +1,15 @@
+import os
 from pathlib import Path
+from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = "django-insecure-)%&-z(k^a#6v$&n=6dfxhw*+ryhx)@a*zmcbm+%kagzy_5mzag"
+# Cargar variables de entorno desde .env
+load_dotenv(os.path.join(BASE_DIR, '.env'))
 
-DEBUG = True
+SECRET_KEY = os.environ.get("SECRET_KEY", "django-insecure-)%&-z(k^a#6v$&n=6dfxhw*+ryhx)@a*zmcbm+%kagzy_5mzag")
+
+DEBUG = os.environ.get("DEBUG", "True") == "True"
 
 ALLOWED_HOSTS = ['*']
 
@@ -29,6 +34,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "activo.django_middleware.GraphQLSecurityDjangoMiddleware",
 ]
 
 ROOT_URLCONF = 'urls'
@@ -79,7 +85,10 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # GraphQL
 GRAPHENE = {
-    "SCHEMA": "activo.schema.schema"
+    "SCHEMA": "activo.schema.schema",
+    "MIDDLEWARE": [
+        "activo.middleware.GraphQLAuthMiddleware",
+    ]
 }
 
 # CORS — permite peticiones desde el frontend React
@@ -88,7 +97,14 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
 ]
 
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_CREDENTIALS = True
+
+# ── Cabeceras de Seguridad (Security Headers) ──
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = 'DENY'
+
+CORS_ALLOW_ALL_ORIGINS = os.environ.get("CORS_ALLOW_ALL_ORIGINS", "True") == "True"
 
 # Archivos de Medios (Subidas)
 MEDIA_URL = '/media/'

@@ -253,7 +253,6 @@ export default function Ingresos() {
     return code.includes(query) || name.includes(query);
   }) || [];
 
-  if (loading) return <div className="loading">Cargando ingresos...</div>;
   if (error) return <div className="error">Error: {error.message}</div>;
 
   return (
@@ -282,15 +281,32 @@ export default function Ingresos() {
             </tr>
           </thead>
           <tbody>
-            {data?.todosIngresos?.length === 0 && (
-              <tr><td colSpan={10} className="empty">No hay ingresos registrados</td></tr>
-            )}
-            {data?.todosIngresos?.map((i: any) => (
-              <tr key={i.nroIngreso}>
-                <td><strong>#{i.nroIngreso}</strong></td>
-                <td>{i.gestion || '-'}</td>
-                <td>{i.actaRecep || '-'}</td>
-                <td>{i.glosa || '-'}</td>
+            {loading ? (
+              Array.from({ length: 5 }).map((_, idx) => (
+                <tr key={idx} className="animate-pulse border-b border-slate-700/30">
+                  <td><div className="h-4 bg-slate-700 rounded w-8"></div></td>
+                  <td><div className="h-4 bg-slate-700 rounded w-12"></div></td>
+                  <td><div className="h-4 bg-slate-700 rounded w-16"></div></td>
+                  <td><div className="h-4 bg-slate-700 rounded w-36"></div></td>
+                  <td><div className="h-4 bg-slate-700 rounded w-28"></div></td>
+                  <td><div className="h-4 bg-slate-700 rounded w-32"></div></td>
+                  <td><div className="h-4 bg-slate-700 rounded w-20"></div></td>
+                  <td><div className="h-4 bg-slate-700 rounded w-16"></div></td>
+                  <td><div className="h-5 bg-slate-700 rounded-full w-16"></div></td>
+                  <td><div className="h-6 bg-slate-700 rounded w-12 ml-auto"></div></td>
+                </tr>
+              ))
+            ) : (
+              <>
+                {data?.todosIngresos?.length === 0 && (
+                  <tr><td colSpan={10} className="empty">No hay ingresos registrados</td></tr>
+                )}
+                {data?.todosIngresos?.map((i: any) => (
+                  <tr key={i.nroIngreso} className="border-b border-slate-700 hover:bg-slate-700/30 transition">
+                    <td><strong>#{i.nroIngreso}</strong></td>
+                    <td>{i.gestion || '-'}</td>
+                    <td>{i.actaRecep || '-'}</td>
+                    <td className="max-w-[200px] truncate" title={i.glosa}>{i.glosa || '-'}</td>
                 <td>{i.codProv?.nombre || '-'}</td>
                 <td>
                   {i.codOficDest
@@ -313,6 +329,8 @@ export default function Ingresos() {
                 </td>
               </tr>
             ))}
+              </>
+            )}
           </tbody>
         </table>
       </div>
@@ -463,7 +481,15 @@ export default function Ingresos() {
                   <input type="date" value={form.fechaRecep} onChange={e => setForm({...form, fechaRecep: e.target.value})} />
                 </div>
                 <div className="form-group">
-                  <label>Nro. Factura</label>
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <label className="mb-0">Nro. Factura</label>
+                    <span 
+                      className="cursor-help text-blue-400 hover:text-blue-300 font-bold font-mono text-[10px] select-none bg-blue-500/10 border border-blue-500/20 w-4 h-4 rounded-full flex items-center justify-center transition-all"
+                      title="Opcional. Número de la factura comercial asociada a la adquisición."
+                    >
+                      ?
+                    </span>
+                  </div>
                   <input type="number" value={form.nroFactura} onChange={e => setForm({...form, nroFactura: e.target.value})} />
                 </div>
                 <div className="form-group">
@@ -471,7 +497,15 @@ export default function Ingresos() {
                   <input type="date" value={form.fechaFactura} onChange={e => setForm({...form, fechaFactura: e.target.value})} />
                 </div>
                 <div className="form-group">
-                  <label>Nro. Egreso</label>
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <label className="mb-0">Nro. Egreso</label>
+                    <span 
+                      className="cursor-help text-blue-400 hover:text-blue-300 font-bold font-mono text-[10px] select-none bg-blue-500/10 border border-blue-500/20 w-4 h-4 rounded-full flex items-center justify-center transition-all"
+                      title="Opcional. Número de comprobante de egreso de caja/banco si aplica."
+                    >
+                      ?
+                    </span>
+                  </div>
                   <input type="number" value={form.nroEgreso} onChange={e => setForm({...form, nroEgreso: e.target.value})} />
                 </div>
               </>}

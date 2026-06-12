@@ -18,17 +18,32 @@ def get_user_from_token(token):
         return None
 
 def get_authenticated_user(info):
-    auth_header = info.context.headers.get('Authorization') or info.context.META.get('HTTP_AUTHORIZATION')
-    if not auth_header:
+    request = info.context
+    token = None
+    
+    # 1. Intentar leer desde la cookie HttpOnly
+    if request.COOKIES and 'jwt_token' in request.COOKIES:
+        token = request.COOKIES.get('jwt_token')
+        
+    # 2. Si no hay cookie, intentar desde el header Authorization (por si acaso)
+    if not token:
+        auth_header = request.headers.get('Authorization') or request.META.get('HTTP_AUTHORIZATION')
+        if auth_header:
+            try:
+                parts = auth_header.split()
+                if len(parts) == 2 and parts[0].upper() == 'JWT':
+                    token = parts[1]
+            except Exception:
+                pass
+                
+    if not token:
         return None
+
     try:
-        parts = auth_header.split()
-        if len(parts) == 2 and parts[0].upper() == 'JWT':
-            token = parts[1]
-            user_id = get_user_from_token(token)
-            if user_id:
-                from activo.models.rbac import in_usuario
-                return in_usuario.objects.get(pk=user_id, estado='ACTIVO')
+        user_id = get_user_from_token(token)
+        if user_id:
+            from activo.models.rbac import in_usuario
+            return in_usuario.objects.get(pk=user_id, estado='ACTIVO')
     except Exception:
         pass
     return None

@@ -4,6 +4,7 @@ import { GET_ACTIVOS_PAGINADOS, GET_CATALOGOS_ACTIVOS } from '../graphql/queries
 import { CREAR_ACTIVO, EDITAR_ACTIVO, APROBAR_ACTIVO } from '../graphql/mutations';
 import PageLayout from '../components/ui/PageLayout';
 import { useAuth } from '../context/AuthContext';
+import { Code39Barcode, QRCodeImage } from '../utils/barcodes';
 
 
 const GET_VEHICULO = gql`
@@ -120,6 +121,19 @@ const EDITAR_ATRIB_ACTIVO = gql`
   }
 `;
 
+const CREAR_DET_ATRIB = gql`
+  mutation CrearDetAtrib($codAtrib: Int!, $nroAtrib: String!, $des: String!) {
+    crearDetAtrib(codAtrib: $codAtrib, nroAtrib: $nroAtrib, des: $des) {
+      detAtrib {
+        codDetAtrib
+        nroAtrib
+        des
+        aB
+      }
+    }
+  }
+`;
+
 const GRUPOS_SIMPLES = ['MOBILIARIO', 'MUEBLES', 'ENSERES', 'SILLA', 'MESA', 'ESCRITORIO'];
 const esGrupoSimple = (desGrupo: string) =>
   GRUPOS_SIMPLES.some(g => desGrupo?.toUpperCase().includes(g));
@@ -181,12 +195,29 @@ export default function Activos() {
   const [mensaje, setMensaje] = useState('');
   const [error, setError] = useState('');
   const [busqueda, setBusqueda] = useState('');
+  const [debouncedBusqueda, setDebouncedBusqueda] = useState('');
   const [paginaActual, setPaginaActual] = useState(1);
   const [selectedActivoSpecs, setSelectedActivoSpecs] = useState<any>(null);
   const [showSpecsModal, setShowSpecsModal] = useState(false);
+  const [showMassSpecsModal, setShowMassSpecsModal] = useState(false);
   const [showVehiculoModal, setShowVehiculoModal] = useState(false);
   const [selectedActivoVehiculo, setSelectedActivoVehiculo] = useState<any>(null);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+  const [showLabelModal, setShowLabelModal] = useState(false);
+  const [selectedActivoLabel, setSelectedActivoLabel] = useState<any>(null);
+
+  // Estados para filtro y selección masiva
+  const [soloPendientes, setSoloPendientes] = useState(false);
+  const [selectedActivos, setSelectedActivos] = useState<number[]>([]);
+  const [aprobandoMasivo, setAprobandoMasivo] = useState(false);
+  const [dropdownPos, setDropdownPos] = useState<{ top: number, right: number } | null>(null);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedBusqueda(busqueda);
+    }, 400);
+    return () => clearTimeout(handler);
+  }, [busqueda]);
 
   useEffect(() => {
     const closeDropdown = () => setOpenDropdownId(null);
@@ -194,9 +225,13 @@ export default function Activos() {
     return () => window.removeEventListener('click', closeDropdown);
   }, []);
 
-  // Autocomplete search states for groups
+  // Autocomplete search states for grupos
   const [grupoSearch, setGrupoSearch] = useState('');
   const [showGruposDropdown, setShowGruposDropdown] = useState(false);
+
+  // Autocomplete search states for ingresos
+  const [ingresoSearch, setIngresoSearch] = useState('');
+  const [showIngresosDropdown, setShowIngresosDropdown] = useState(false);
 
   // Estado para creación en lote
   const [cantidadLote, setCantidadLote] = useState(1);
@@ -207,7 +242,8 @@ export default function Activos() {
     variables: {
       limit: ITEMS_POR_PAGINA,
       offset: (paginaActual - 1) * ITEMS_POR_PAGINA,
-      search: busqueda.trim() || ""
+      search: debouncedBusqueda.trim() || "",
+      soloPendientes: soloPendientes
     }
   });
   const { data: cats } = useQuery(GET_CATALOGOS_ACTIVOS);
@@ -237,12 +273,25 @@ export default function Activos() {
     setShowGruposDropdown(false);
   };
 
+  const handleSelectIngreso = (i: any) => {
+    setForm({ ...form, nroIngreso: i.nroIngreso.toString() });
+    setIngresoSearch(`#${i.nroIngreso} - ${i.glosa || 'Sin glosa'}`);
+    setShowIngresosDropdown(false);
+  };
+
   const filteredGrupos = cats?.todosGrupos?.filter((g: any) => {
     const fullCode = getGroupFullCode(g).toLowerCase();
     const unifiedCode = getGroupUnifiedCode(g).toLowerCase();
     const text = g.desGrupo.toLowerCase();
     const query = grupoSearch.toLowerCase();
     return text.includes(query) || fullCode.includes(query) || unifiedCode.includes(query);
+  }) || [];
+
+  const filteredIngresos = cats?.todosIngresos?.filter((i: any) => {
+    const text = i.glosa ? i.glosa.toLowerCase() : '';
+    const num = i.nroIngreso.toString();
+    const query = ingresoSearch.toLowerCase();
+    return text.includes(query) || num.includes(query);
   }) || [];
 
   // Autocomplete code generator
@@ -257,10 +306,10 @@ export default function Activos() {
         const groupCode = getGroupUnifiedCode(selectedGroup);
         
         let combined = (officeCode + groupCode).replace(/[^0-9A-Z]/gi, '');
-        if (combined.length > 7) {
-          combined = combined.substring(0, 7);
+        if (combined.length > 8) {
+          combined = combined.substring(0, 8);
         } else {
-          combined = combined.padEnd(7, '0');
+          combined = combined.padEnd(8, '0');
         }
         
         const generated = `U${combined}0001`;
@@ -295,15 +344,15 @@ export default function Activos() {
 
     let exitos = 0;
     let fallos = 0;
+    let errorMsg = '';
 
-    const base8 = form.codActivo.substring(0, 8);
-    const prefix8 = base8.padEnd(8, '0');
+    const basePrefix = form.codActivo.substring(0, 9);
+    const prefix = basePrefix.padEnd(9, '0');
 
     for (let i = 0; i < cantidad; i++) {
+      const seqStr = (i + 1).toString().padStart(4, '0');
+      const codigoCompleto = `${prefix}${seqStr}`;
       try {
-        const seqStr = (i + 1).toString().padStart(4, '0');
-        const codigoCompleto = `${prefix8}${seqStr}`;
-        
         await crearActivo({
           variables: {
             codGest: parseInt(form.codGest),
@@ -326,22 +375,29 @@ export default function Activos() {
           }
         });
         exitos++;
-      } catch (err) {
+      } catch (err: any) {
         fallos++;
+        errorMsg = `Error en ${codigoCompleto}: ${err.message}`;
+        break; // Detener en el primer fallo para no ensuciar DB
       }
       setProgresoLote({ actual: i + 1, total: cantidad });
     }
 
-    setCreandoLote(true);
     setTimeout(() => {
       setCreandoLote(false);
-      setMensaje(`Lote completado: ${exitos} creados, ${fallos} errores`);
-      setShowModal(false);
-      setForm(FORM_VACIO);
-      setGrupoSelDes('');
-      setGrupoSearch('');
-      refetch();
-      setTimeout(() => setMensaje(''), 4000);
+      if (fallos > 0) {
+        setError(`Lote interrumpido. ${exitos} creados. ${errorMsg}`);
+        setTimeout(() => setError(''), 6000);
+      } else {
+        setMensaje(`Lote completado: ${exitos} creados exitosamente.`);
+        setShowModal(false);
+        setForm(FORM_VACIO);
+        setGrupoSelDes('');
+        setGrupoSearch('');
+        setIngresoSearch('');
+        refetch();
+        setTimeout(() => setMensaje(''), 4000);
+      }
     }, 500);
   };
 
@@ -381,16 +437,54 @@ export default function Activos() {
       await aprobarActivo({
         variables: { nroActivo: parseInt(String(nroActivo)) }
       });
-      setMensaje('Activo aprobado correctamente');
+      setMensaje('Activo aprobado con éxito.');
       refetch();
-      setTimeout(() => setMensaje(''), 3000);
     } catch (e: any) {
       setError('Error al aprobar activo: ' + e.message);
-      setTimeout(() => setError(''), 3000);
     }
   };
 
+  const handleAprobarMasivo = async () => {
+    if (selectedActivos.length === 0) return;
+    if (!window.confirm(`¿Está seguro de que desea APROBAR los ${selectedActivos.length} activos seleccionados?`)) return;
 
+    setAprobandoMasivo(true);
+    setMensaje('');
+    setError('');
+    let successCount = 0;
+    
+    try {
+      await Promise.all(
+        selectedActivos.map(async (id) => {
+          await aprobarActivo({ variables: { nroActivo: parseInt(String(id)) } });
+          successCount++;
+        })
+      );
+      setMensaje(`Se aprobaron ${successCount} activos con éxito.`);
+      setSelectedActivos([]); // Limpiar selección
+      refetch();
+    } catch (e: any) {
+      setError(`Error al aprobar algunos activos. Se aprobaron ${successCount} correctamente.`);
+      refetch();
+    } finally {
+      setAprobandoMasivo(false);
+    }
+  };
+
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      const allIds = activosPaginados.map((a: any) => a.nroActivo);
+      setSelectedActivos(allIds);
+    } else {
+      setSelectedActivos([]);
+    }
+  };
+
+  const handleSelectRow = (nroActivo: number) => {
+    setSelectedActivos(prev => 
+      prev.includes(nroActivo) ? prev.filter(id => id !== nroActivo) : [...prev, nroActivo]
+    );
+  };
 
   const handleSubmitIndividual = async () => {
     if (editId) {
@@ -489,7 +583,6 @@ export default function Activos() {
     );
   }
 
-  if (loading) return <div className="loading">Cargando activos...</div>;
   if (queryError) return <div className="error">Error: {queryError.message}</div>;
 
   const acciones = [
@@ -499,11 +592,33 @@ export default function Activos() {
       variant: 'primary' as const,
       disabled: !puedeCrear,
       onClick: () => { setForm(FORM_VACIO); setGrupoSelDes(''); setGrupoSearch(''); setShowModal(true); },
+      show: true,
+    },
+    {
+      label: `Espec. Masivas (${selectedActivos.length})`,
+      icon: '',
+      onClick: () => {
+        const assetsToSpec = activosPaginados.filter((a: any) => selectedActivos.includes(a.nroActivo));
+        const groups = new Set(assetsToSpec.map((a: any) => a.codGrupo?.codGrupo));
+        if (groups.size > 1) {
+          alert('Para aplicar especificaciones en masa, todos los activos seleccionados deben pertenecer al mismo Grupo.');
+          return;
+        }
+        setShowMassSpecsModal(true);
+      },
+      show: selectedActivos.length > 0 && puedeEditar,
+    },
+    {
+      label: aprobandoMasivo ? 'Aprobando...' : `Aprobar (${selectedActivos.length})`,
+      icon: '',
+      onClick: handleAprobarMasivo,
+      show: selectedActivos.length > 0 && puedeEditar,
     },
     {
       label: 'Actualizar',
-      icon: '\u21BA',
+      icon: '↻',
       onClick: () => refetch(),
+      show: true,
     },
   ];
 
@@ -512,14 +627,29 @@ export default function Activos() {
       title="Activos Fijos"
       actions={acciones}
       toolbar={
-        <input
-          type="text"
-          className="search-input"
-          placeholder="Buscar por codigo, descripcion o serie..."
-          value={busqueda}
-          onChange={e => { setBusqueda(e.target.value); setPaginaActual(1); }}
-          style={{ maxWidth: '400px' }}
-        />
+        <>
+          <input
+            type="text"
+            className="search-input"
+            placeholder="Buscar por codigo, descripcion o serie..."
+            value={busqueda}
+            onChange={e => { setBusqueda(e.target.value); setPaginaActual(1); }}
+            style={{ maxWidth: '300px' }}
+          />
+          <label className="flex items-center gap-2 text-sm text-slate-300 ml-4 cursor-pointer">
+            <input 
+              type="checkbox" 
+              checked={soloPendientes}
+              onChange={(e) => {
+                setSoloPendientes(e.target.checked);
+                setPaginaActual(1);
+              }}
+              className="form-checkbox h-4 w-4 text-blue-600 rounded bg-slate-800 border-slate-600"
+            />
+            Ver Solo Pendientes
+          </label>
+          {/* Botones masivos movidos a la lista de acciones laterales */}
+        </>
       }
       footer={
         totalPaginas > 1 ? (
@@ -538,10 +668,18 @@ export default function Activos() {
       {error   && <div className="alert alert-danger">{error}</div>}
 
       {/* Tabla */}
-      <div className="table-container" style={{ overflowX: 'auto' }}>
+      <div className="table-container" style={{ overflowX: 'auto', paddingBottom: '1rem' }}>
         <table>
           <thead>
             <tr>
+              <th style={{ width: '40px', textAlign: 'center' }}>
+                <input 
+                  type="checkbox" 
+                  checked={activosPaginados.length > 0 && selectedActivos.length === activosPaginados.length}
+                  onChange={handleSelectAll}
+                  className="form-checkbox h-4 w-4 text-blue-600 rounded bg-slate-800 border-slate-600 cursor-pointer"
+                />
+              </th>
               <th>Código</th>
               <th>Descripción</th>
               <th>Grupo</th>
@@ -551,170 +689,172 @@ export default function Activos() {
               <th>Condición</th>
               <th>Estado</th>
               <th>Registro</th>
-              <th>Acciones</th>
+              <th style={{ textAlign: 'center' }}>Acciones</th>
             </tr>
           </thead>
           <tbody>
-            {activosPaginados.length === 0 && (
-              <tr><td colSpan={10} className="table-empty">No hay activos registrados</td></tr>
-            )}
-            {activosPaginados.map((a: any) => (
-              <tr key={a.nroActivo}>
-                <td><strong style={{ fontFamily: 'monospace', color: 'var(--primary)' }}>{a.codActivo}</strong></td>
-                <td>{a.descripcion}</td>
-                <td>{a.codGrupo?.desGrupo || '-'}</td>
-                <td>
-                  {a.codMarca?.desMarca ? `${a.codMarca.desMarca}${a.codModelo?.desModelo ? ' / ' + a.codModelo.desModelo : ''}` : '-'}
-                </td>
-                <td style={{ color: 'var(--secondary)', fontWeight: 600 }}>
-                  {a.monto ? parseFloat(a.monto).toLocaleString('es-BO', { minimumFractionDigits: 2 }) : '-'}
-                </td>
-                <td>{a.fecAdqui || '-'}</td>
-                <td>{a.codCond?.desCond || '-'}</td>
-                <td>
-                  <span className={`badge ${
-                    a.codEstado?.desEstado === 'ACTIVO' ? 'badge-success' :
-                    a.codEstado?.desEstado === 'BAJA'   ? 'badge-danger'  :
-                    'badge-secondary'
-                  }`}>{a.codEstado?.desEstado || '-'}</span>
-                </td>
-                <td>
-                  <span className={`badge ${
-                    a.estadoRegistro === 'APROBADO' ? 'badge-success' : 'badge-warning'
-                  }`}>{a.estadoRegistro || 'ELABORADO'}</span>
-                </td>
-                <td className="px-4 py-3" style={{ position: 'relative' }}>
-                  <div style={{ display: 'inline-block', position: 'relative' }}>
+            {loading ? (
+              Array.from({ length: 8 }).map((_, idx) => (
+                <tr key={idx} className="animate-pulse border-b border-slate-700/30">
+                  <td><div className="h-4 bg-slate-700 rounded w-4 mx-auto"></div></td>
+                  <td><div className="h-4 bg-slate-700 rounded w-16"></div></td>
+                  <td><div className="h-4 bg-slate-700 rounded w-44"></div></td>
+                  <td><div className="h-4 bg-slate-700 rounded w-28"></div></td>
+                  <td><div className="h-4 bg-slate-700 rounded w-32"></div></td>
+                  <td><div className="h-4 bg-slate-700 rounded w-16"></div></td>
+                  <td><div className="h-4 bg-slate-700 rounded w-20"></div></td>
+                  <td><div className="h-4 bg-slate-700 rounded w-16"></div></td>
+                  <td><div className="h-4 bg-slate-700 rounded w-16"></div></td>
+                  <td><div className="h-5 bg-slate-700 rounded-full w-24"></div></td>
+                  <td><div className="h-6 bg-slate-700 rounded w-12 ml-auto"></div></td>
+                </tr>
+              ))
+            ) : (
+              <>
+                {activosPaginados.length === 0 && (
+                  <tr><td colSpan={11} className="table-empty">No hay activos registrados</td></tr>
+                )}
+                {activosPaginados.map((a: any) => (
+                  <tr key={a.nroActivo} className={`border-b border-slate-700 hover:bg-slate-700/30 transition ${selectedActivos.includes(a.nroActivo) ? 'bg-slate-700/20' : ''}`}>
+                    <td style={{ textAlign: 'center' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={selectedActivos.includes(a.nroActivo)}
+                        onChange={() => handleSelectRow(a.nroActivo)}
+                        className="form-checkbox h-4 w-4 text-blue-600 rounded bg-slate-800 border-slate-600 cursor-pointer"
+                      />
+                    </td>
+                    <td><strong style={{ fontFamily: 'monospace', color: 'var(--primary)' }}>{a.codActivo}</strong></td>
+                    <td className="max-w-[200px] truncate" title={a.descripcion}>{a.descripcion}</td>
+                    <td>{a.codGrupo?.desGrupo || '-'}</td>
+                    <td>
+                      {a.codMarca?.desMarca ? `${a.codMarca.desMarca}${a.codModelo?.desModelo ? ' / ' + a.codModelo.desModelo : ''}` : '-'}
+                    </td>
+                    <td style={{ color: 'var(--secondary)', fontWeight: 600 }}>
+                      {a.monto ? parseFloat(a.monto).toLocaleString('es-BO', { minimumFractionDigits: 2 }) : '-'}
+                    </td>
+                    <td>{a.fecAdqui || '-'}</td>
+                    <td>{a.codCond?.desCond || '-'}</td>
+                    <td>
+                      <span className={`badge ${
+                        a.codEstado?.desEstado === 'ACTIVO' ? 'badge-success' :
+                        a.codEstado?.desEstado === 'BAJA'   ? 'badge-danger'  :
+                        'badge-secondary'
+                      }`}>{a.codEstado?.desEstado || '-'}</span>
+                    </td>
+                    <td>
+                      <span className={`badge ${
+                        a.estadoRegistro === 'APROBADO' ? 'badge-success' : 'badge-warning'
+                      }`}>{a.estadoRegistro || 'ELABORADO'}</span>
+                    </td>
+                    <td className="px-4 py-3" style={{ position: 'relative' }}>
+                  <div>
                     <button
                       className="btn btn-secondary btn-sm"
                       style={{ padding: '4px 10px', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.75rem' }}
                       onClick={(e) => {
                         e.stopPropagation();
-                        setOpenDropdownId(openDropdownId === String(a.nroActivo) ? null : String(a.nroActivo));
+                        if (openDropdownId === String(a.nroActivo)) {
+                          setOpenDropdownId(null);
+                          setDropdownPos(null);
+                        } else {
+                          const rect = e.currentTarget.getBoundingClientRect();
+                          setDropdownPos({
+                            top: rect.bottom,
+                            right: window.innerWidth - rect.right
+                          });
+                          setOpenDropdownId(String(a.nroActivo));
+                        }
                       }}
                     >
                       Acciones ▾
                     </button>
-                    {openDropdownId === String(a.nroActivo) && (
+                    {openDropdownId === String(a.nroActivo) && dropdownPos && (
                       <div
                         className="dropdown-menu"
                         style={{
-                          position: 'absolute',
-                          right: 0,
-                          top: '100%',
+                          position: 'fixed',
+                          right: dropdownPos.right,
+                          top: dropdownPos.top + 4,
                           background: '#ffffff',
                           border: '1px solid #cbd5e1',
                           borderRadius: '8px',
                           boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                          zIndex: 999,
-                          minWidth: '130px',
+                          zIndex: 99999,
+                          minWidth: '140px',
                           display: 'flex',
                           flexDirection: 'column',
-                          padding: '4px 0',
-                          marginTop: '4px'
+                          padding: '4px 0'
                         }}
                         onClick={e => e.stopPropagation()}
                       >
                         {puedeEditar && (
                           <button
                             style={{
-                              background: 'none',
-                              border: 'none',
-                              padding: '8px 12px',
-                              textAlign: 'left',
-                              fontSize: '0.8rem',
-                              color: '#334155',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '6px'
+                              background: 'none', border: 'none', padding: '8px 16px',
+                              textAlign: 'left', fontSize: '0.85rem', color: '#334155', cursor: 'pointer'
                             }}
-                            onClick={() => {
-                              setOpenDropdownId(null);
-                              handleEdit(a);
-                            }}
+                            onClick={() => { setOpenDropdownId(null); handleEdit(a); }}
                             onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
                             onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
                           >
-                            ✏️ Editar
+                            Editar
                           </button>
                         )}
                         {puedeEditar && a.estadoRegistro !== 'APROBADO' && (
                           <button
                             style={{
-                              background: 'none',
-                              border: 'none',
-                              padding: '8px 12px',
-                              textAlign: 'left',
-                              fontSize: '0.8rem',
-                              color: '#16a34a',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '6px'
+                              background: 'none', border: 'none', padding: '8px 16px',
+                              textAlign: 'left', fontSize: '0.85rem', color: '#16a34a', cursor: 'pointer'
                             }}
-                            onClick={() => {
-                              setOpenDropdownId(null);
-                              handleAprobar(a.nroActivo);
-                            }}
+                            onClick={() => { setOpenDropdownId(null); handleAprobar(a.nroActivo); }}
                             onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
                             onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
                           >
-                            ✅ Aprobar
+                            Aprobar
                           </button>
                         )}
                         <button
                           style={{
-                            background: 'none',
-                            border: 'none',
-                            padding: '8px 12px',
-                            textAlign: 'left',
-                            fontSize: '0.8rem',
-                            color: '#2563eb',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px'
+                            background: 'none', border: 'none', padding: '8px 16px',
+                            textAlign: 'left', fontSize: '0.85rem', color: '#2563eb', cursor: 'pointer'
                           }}
-                          onClick={() => {
-                            setOpenDropdownId(null);
-                            setSelectedActivoSpecs(a);
-                            setShowSpecsModal(true);
-                          }}
+                          onClick={() => { setOpenDropdownId(null); setSelectedActivoSpecs(a); setShowSpecsModal(true); }}
                           onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
                           onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
                         >
-                          ⚙️ Specs
+                          Especificaciones
                         </button>
                         <button
                           style={{
-                            background: 'none',
-                            border: 'none',
-                            padding: '8px 12px',
-                            textAlign: 'left',
-                            fontSize: '0.8rem',
-                            color: '#d97706',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px'
+                            background: 'none', border: 'none', padding: '8px 16px',
+                            textAlign: 'left', fontSize: '0.85rem', color: '#9333ea', cursor: 'pointer'
                           }}
-                          onClick={() => {
-                            setOpenDropdownId(null);
-                            setSelectedActivoVehiculo(a);
-                            setShowVehiculoModal(true);
-                          }}
+                          onClick={() => { setOpenDropdownId(null); setSelectedActivoLabel(a); setShowLabelModal(true); }}
                           onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
                           onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
                         >
-                          🚗 Ficha
+                          Generar Etiqueta
+                        </button>
+                        <button
+                          style={{
+                            background: 'none', border: 'none', padding: '8px 16px',
+                            textAlign: 'left', fontSize: '0.85rem', color: '#0d9488', cursor: 'pointer'
+                          }}
+                          onClick={() => { setOpenDropdownId(null); setSelectedActivoVehiculo(a); setShowVehiculoModal(true); }}
+                          onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                          onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                        >
+                          Datos Vehículo
                         </button>
                       </div>
                     )}
                   </div>
                 </td>
-              </tr>
-            ))}
+                  </tr>
+                ))}
+              </>
+            )}
           </tbody>
         </table>
       </div>
@@ -759,25 +899,59 @@ export default function Activos() {
               <label>Gestión *</label>
               <select name="codGest" value={form.codGest} onChange={handleChange} disabled={editId !== null}>
                 <option value="">Seleccionar...</option>
-                {cats?.todasGestiones?.map((g: any) => (
-                  <option key={g.codGest} value={g.codGest}>{g.gestIni}</option>
+                {cats?.todasGestiones?.map((g: any, idx: number) => (
+                  <option key={`gest-${g.codGest}-${idx}`} value={g.codGest}>{g.gestIni}</option>
                 ))}
               </select>
             </div>
             <div className="form-group">
               <label>Ingreso *</label>
-              <select name="nroIngreso" value={form.nroIngreso} onChange={handleChange} disabled={editId !== null}>
-                <option value="">Seleccionar...</option>
-                {cats?.todosIngresos?.map((i: any) => (
-                  <option key={i.nroIngreso} value={i.nroIngreso}>#{i.nroIngreso} - {i.glosa || 'Sin glosa'}</option>
-                ))}
-              </select>
+              <div className="autocomplete-container">
+                <input
+                  type="text"
+                  value={ingresoSearch}
+                  onChange={e => {
+                    setIngresoSearch(e.target.value);
+                    setForm({ ...form, nroIngreso: '' });
+                    setShowIngresosDropdown(true);
+                  }}
+                  onFocus={() => { if (editId === null) setShowIngresosDropdown(true); }}
+                  onBlur={() => setTimeout(() => setShowIngresosDropdown(false), 200)}
+                  placeholder="Buscar nro o glosa..."
+                  disabled={editId !== null}
+                />
+                {showIngresosDropdown && editId === null && (
+                  <ul className="autocomplete-dropdown">
+                    {filteredIngresos.slice(0, 20).map((i: any, idx: number) => (
+                      <li
+                        key={`ing-${i.nroIngreso}-${idx}`}
+                        className="autocomplete-item"
+                        onClick={() => handleSelectIngreso(i)}
+                      >
+                        #{i.nroIngreso} - {i.glosa || 'Sin glosa'}
+                      </li>
+                    ))}
+                    {filteredIngresos.length === 0 && (
+                      <li className="autocomplete-no-results">No se encontraron ingresos</li>
+                    )}
+                  </ul>
+                )}
+              </div>
             </div>
           </div>
 
           <div className="form-group form-group-full">
             <label>Código Activo *</label>
-            <input name="codActivo" value={form.codActivo} onChange={handleChange} placeholder="Ej: U101010001" disabled={editId !== null} />
+            <input 
+              name="codActivo" 
+              value={form.codActivo} 
+              onChange={handleChange} 
+              placeholder="Auto-generado al elegir Ingreso y Grupo" 
+              readOnly={editId === null}
+              disabled={editId !== null} 
+              style={editId === null ? { backgroundColor: 'var(--bg-light)', cursor: 'not-allowed' } : {}}
+              title={editId === null ? "Se autogenera al seleccionar un Ingreso y Grupo." : ""}
+            />
           </div>
 
           <div className="form-group form-group-full">
@@ -879,11 +1053,27 @@ export default function Activos() {
           <div className="section-bar" style={{ margin: '1rem 0 0.5rem' }}>Datos Fiscales / Control (VSIAF)</div>
           <div className="form-grid">
             <div className="form-group">
-              <label>Organismo Financiador</label>
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <label className="mb-0">Organismo Financiador</label>
+                <span 
+                  className="cursor-help text-blue-400 hover:text-blue-300 font-bold font-mono text-[10px] select-none bg-blue-500/10 border border-blue-500/20 w-4 h-4 rounded-full flex items-center justify-center transition-all"
+                  title="Código de la fuente de financiamiento del bien (ej. 11: TGN, 41: Transferencias)."
+                >
+                  ?
+                </span>
+              </div>
               <input type="number" name="organismoFinanciador" value={form.organismoFinanciador} onChange={handleChange} placeholder="Ej: 11" />
             </div>
             <div className="form-group">
-              <label>Código RUBE</label>
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <label className="mb-0">Código RUBE</label>
+                <span 
+                  className="cursor-help text-blue-400 hover:text-blue-300 font-bold font-mono text-[10px] select-none bg-blue-500/10 border border-blue-500/20 w-4 h-4 rounded-full flex items-center justify-center transition-all"
+                  title="Código de Registro Único de Bienes del Estado asignado por el MEFP."
+                >
+                  ?
+                </span>
+              </div>
               <input type="text" name="codRube" value={form.codRube} onChange={handleChange} placeholder="Ej: R-1234" />
             </div>
           </div>
@@ -958,11 +1148,17 @@ export default function Activos() {
 )}
       {showSpecsModal && selectedActivoSpecs && (
         <SpecsModal
-          activo={selectedActivoSpecs}
+          activos={[selectedActivoSpecs]}
           onClose={() => {
             setShowSpecsModal(false);
             setSelectedActivoSpecs(null);
           }}
+        />
+      )}
+      {showMassSpecsModal && selectedActivos.length > 0 && (
+        <SpecsModal
+          activos={activosPaginados.filter((a: any) => selectedActivos.includes(a.nroActivo))}
+          onClose={() => setShowMassSpecsModal(false)}
         />
       )}
       {showVehiculoModal && selectedActivoVehiculo && (
@@ -974,26 +1170,42 @@ export default function Activos() {
           }}
         />
       )}
+      {showLabelModal && selectedActivoLabel && (
+        <LabelModal
+          activo={selectedActivoLabel}
+          onClose={() => {
+            setShowLabelModal(false);
+            setSelectedActivoLabel(null);
+          }}
+        />
+      )}
     </PageLayout>
   );
 }
 
 // ==================== SPECS MODAL SUBCOMPONENT ====================
-function SpecsModal({ activo, onClose }: { activo: any; onClose: () => void }) {
-  const codGrupo = activo.codGrupo?.codGrupo;
-  const nroActivo = activo.nroActivo;
+function SpecsModal({ activos, onClose }: { activos: any[]; onClose: () => void }) {
+  const activoBase = activos[0];
+  const codGrupo = activoBase?.codGrupo?.codGrupo;
+  const nroActivoRef = activoBase?.nroActivo;
 
   const { data, loading, error, refetch } = useQuery(GET_SPECS_DATA, {
-    variables: { codGrupo: parseInt(codGrupo), nroActivo: parseInt(nroActivo) },
-    skip: !codGrupo || !nroActivo
+    variables: { codGrupo: parseInt(codGrupo), nroActivo: parseInt(nroActivoRef) },
+    skip: !codGrupo || !nroActivoRef
   });
 
   const [asignarAtrib] = useMutation(ASIGNAR_ATRIB_ACTIVO);
   const [editarAtrib] = useMutation(EDITAR_ATRIB_ACTIVO);
+  const [crearDetAtrib] = useMutation(CREAR_DET_ATRIB);
 
   // Keep track of values being modified
   const [tempValues, setTempValues] = useState<Record<number, { codDetAtrib: string; valor: string }>>({});
   const [savingAtribId, setSavingAtribId] = useState<number | null>(null);
+  const [creatingOptionAtribId, setCreatingOptionAtribId] = useState<number | null>(null);
+  
+  // State for new option modal
+  const [showNewOptionModal, setShowNewOptionModal] = useState<{ atribId: number, options: any[] } | null>(null);
+  const [newOptionDes, setNewOptionDes] = useState('');
 
   if (loading) return <div className="modal-overlay"><div className="modal">Cargando especificaciones...</div></div>;
   if (error)   return <div className="modal-overlay"><div className="modal">Error: {error.message}</div></div>;
@@ -1008,54 +1220,46 @@ function SpecsModal({ activo, onClose }: { activo: any; onClose: () => void }) {
     }
     setSavingAtribId(atribId);
     try {
-      // Check if there is already an active assignment for this specific detail
-      const existingAssignment = activeSpecs.find(
-        (spec: any) => spec.codDetAtrib?.codDetAtrib === parseInt(codDetAtrib)
-      );
+      await Promise.all(activos.map(async (act) => {
+        const currentNroActivo = act.nroActivo;
+        
+        // Check if there is already an active assignment for this specific detail on the base ref
+        // We assume existing logic roughly applies: we re-assign everything selected to the whole array
+        const existingAssignment = activeSpecs.find(
+          (spec: any) => spec.codDetAtrib?.codDetAtrib === parseInt(codDetAtrib)
+        );
 
-      // We also check if there is an active assignment for any OTHER detail belonging to the same attribute
-      const otherDetailAssignment = activeSpecs.find(
-        (spec: any) =>
-          spec.codDetAtrib?.codAtrib?.codAtrib === atribId &&
-          spec.codDetAtrib?.codDetAtrib !== parseInt(codDetAtrib) &&
-          spec.ok === 'S'
-      );
+        const otherDetailAssignment = activeSpecs.find(
+          (spec: any) =>
+            spec.codDetAtrib?.codAtrib?.codAtrib === atribId &&
+            spec.codDetAtrib?.codDetAtrib !== parseInt(codDetAtrib) &&
+            spec.ok === 'S'
+        );
 
-      // If there is an assignment for another detail, set ok = 'N' for it first
-      if (otherDetailAssignment) {
-        await editarAtrib({
-          variables: {
-            codDetAtrib: parseInt(otherDetailAssignment.codDetAtrib.codDetAtrib),
-            nroActivo: parseInt(nroActivo),
-            ok: 'N',
-            valor: otherDetailAssignment.valor
-          }
-        });
-      }
+        if (otherDetailAssignment) {
+          await editarAtrib({
+            variables: {
+              codDetAtrib: parseInt(otherDetailAssignment.codDetAtrib.codDetAtrib),
+              nroActivo: parseInt(currentNroActivo),
+              ok: 'N',
+              valor: otherDetailAssignment.valor
+            }
+          });
+        }
 
-      if (existingAssignment) {
-        // Just update ok='S' and valor
-        await editarAtrib({
-          variables: {
-            codDetAtrib: parseInt(codDetAtrib),
-            nroActivo: parseInt(nroActivo),
-            ok: 'S',
-            valor: valor
-          }
-        });
-      } else {
-        // Create new assignment
+        // We use create/assign which will get_or_create internally
         await asignarAtrib({
           variables: {
             codDetAtrib: parseInt(codDetAtrib),
-            nroActivo: parseInt(nroActivo),
+            nroActivo: parseInt(currentNroActivo),
             ok: 'S',
             valor: valor
           }
         });
-      }
+      }));
+
       refetch();
-      alert('✅ Especificación guardada correctamente');
+      alert(`Especificación guardada correctamente en ${activos.length} activo(s)`);
     } catch (e: any) {
       alert('Error: ' + e.message);
     } finally {
@@ -1063,19 +1267,62 @@ function SpecsModal({ activo, onClose }: { activo: any; onClose: () => void }) {
     }
   };
 
+  const saveNewOption = async () => {
+    if (!showNewOptionModal || !newOptionDes.trim()) return;
+    const { atribId, options } = showNewOptionModal;
+
+    setCreatingOptionAtribId(atribId);
+    try {
+      // Calculate next correlative nroAtrib
+      let maxNro = 0;
+      for (const opt of options) {
+        const nro = parseInt(opt.nroAtrib, 10);
+        if (!isNaN(nro) && nro > maxNro) {
+          maxNro = nro;
+        }
+      }
+      const nextNroStr = String(maxNro + 1).padStart(2, '0');
+
+      const { data } = await crearDetAtrib({
+        variables: { 
+          codAtrib: parseInt(atribId.toString(), 10), 
+          nroAtrib: nextNroStr, 
+          des: newOptionDes.trim() 
+        }
+      });
+      
+      const newCodDetAtrib = data?.crearDetAtrib?.detAtrib?.codDetAtrib;
+      if (newCodDetAtrib) {
+        setTempValues({ ...tempValues, [atribId]: { ...tempValues[atribId], codDetAtrib: String(newCodDetAtrib) } });
+        await refetch();
+      }
+      
+      setShowNewOptionModal(null);
+      setNewOptionDes('');
+    } catch (e: any) {
+      alert("Error al crear la opción: " + e.message);
+    } finally {
+      setCreatingOptionAtribId(null);
+    }
+  };
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()} style={{ width: '620px' }}>
         <div className="modal-title">
-          <span>⚙️ ESPECIFICACIONES TÉCNICAS</span>
+          <span>⚙️ ESPECIFICACIONES TÉCNICAS {activos.length > 1 ? '(MASIVO)' : ''}</span>
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
 
         <div className="modal-body">
           <div style={{ marginBottom: '1rem', background: 'var(--blue-pale)', padding: '0.75rem 1rem', border: '1px solid var(--border)' }}>
-            <p style={{ margin: '0 0 0.25rem', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>Activo Fijo:</p>
-            <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: 'var(--navy)' }}>[{activo.codActivo}] {activo.descripcion}</p>
-            <p style={{ margin: '0.25rem 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>Grupo: {activo.codGrupo?.desGrupo}</p>
+            <p style={{ margin: '0 0 0.25rem', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>Activo(s):</p>
+            {activos.length === 1 ? (
+              <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: 'var(--navy)' }}>[{activoBase.codActivo}] {activoBase.descripcion}</p>
+            ) : (
+              <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: 'var(--navy)' }}>Aplicando a {activos.length} activos seleccionados.</p>
+            )}
+            <p style={{ margin: '0.25rem 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>Grupo: {activoBase.codGrupo?.desGrupo}</p>
           </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxHeight: '420px', overflowY: 'auto', paddingRight: '4px' }}>
@@ -1097,7 +1344,19 @@ function SpecsModal({ activo, onClose }: { activo: any; onClose: () => void }) {
                   <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--primary)', marginBottom: '0.5rem' }}>{atrib.des}</div>
                   <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
                     <div className="form-group" style={{ flex: 1, minWidth: '150px', margin: 0 }}>
-                      <label>Opción *</label>
+                      <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>Opción *</span>
+                        <button 
+                          onClick={() => {
+                            setShowNewOptionModal({ atribId: atrib.codAtrib, options });
+                            setNewOptionDes('');
+                          }}
+                          disabled={creatingOptionAtribId === atrib.codAtrib}
+                          style={{ background: 'none', border: 'none', color: 'var(--blue)', fontSize: '0.75rem', cursor: 'pointer', padding: 0 }}
+                        >
+                          {creatingOptionAtribId === atrib.codAtrib ? 'Creando...' : '[+] Nuevo'}
+                        </button>
+                      </label>
                       <select value={currentVal.codDetAtrib} onChange={e => setTempValues({ ...tempValues, [atrib.codAtrib]: { ...currentVal, codDetAtrib: e.target.value } })}>
                         <option value="">Seleccione...</option>
                         {options.map((o: any) => <option key={o.codDetAtrib} value={o.codDetAtrib}>{o.des}</option>)}
@@ -1127,6 +1386,38 @@ function SpecsModal({ activo, onClose }: { activo: any; onClose: () => void }) {
           <button className="btn btn-secondary" onClick={onClose}>Cerrar</button>
         </div>
       </div>
+      {showNewOptionModal && (
+        <div className="modal-overlay" onClick={() => setShowNewOptionModal(null)} style={{ zIndex: 10000, background: 'rgba(0,0,0,0.6)' }}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ width: '400px' }}>
+            <div className="modal-title">
+              <span>Crear Nueva Opción</span>
+              <button className="modal-close" onClick={() => setShowNewOptionModal(null)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group">
+                <label>Nombre de la Opción *</label>
+                <input 
+                  type="text" 
+                  value={newOptionDes} 
+                  onChange={e => setNewOptionDes(e.target.value)} 
+                  autoFocus
+                  placeholder="Ej. Core i9"
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem', justifyContent: 'flex-end' }}>
+                <button className="btn btn-secondary" onClick={() => setShowNewOptionModal(null)}>Cancelar</button>
+                <button 
+                  className="btn btn-primary" 
+                  onClick={saveNewOption} 
+                  disabled={!newOptionDes.trim() || creatingOptionAtribId !== null}
+                >
+                  {creatingOptionAtribId !== null ? 'Guardando...' : 'Guardar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1445,6 +1736,271 @@ function VehiculoModal({ activo, onClose }: { activo: any; onClose: () => void }
             {saving ? 'Guardando...' : 'Guardar Ficha'}
           </button>
           <button className="btn btn-secondary" onClick={onClose} disabled={saving}>Cancelar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ==================== LABEL PRINTING MODAL SUBCOMPONENT ====================
+function LabelModal({ activo, onClose }: { activo: any; onClose: () => void }) {
+  const [printMode, setPrintMode] = useState<'qr' | 'barcode'>('qr');
+  // Helper to format full office hierarchy name
+  const getActivoLocationName = (act: any): string => {
+    const activeAsig = act.inDetAsigSet?.find(
+      (det: any) => det.codAsig?.estado === 'A'
+    );
+    let oficina = null;
+    if (activeAsig?.codAsig?.codOfic) {
+      oficina = activeAsig.codAsig.codOfic;
+    } else if (act.nroIngreso?.codOficDest) {
+      oficina = act.nroIngreso.codOficDest;
+    }
+
+    if (!oficina) return 'Sin Ubicación asignada';
+
+    const path: string[] = [];
+    let current = oficina;
+    while (current) {
+      if (current.desDpto) {
+        path.unshift(current.desDpto);
+      }
+      current = current.codPadre;
+    }
+    return path.join(' > ');
+  };
+
+  // Helper to determine remaining/current useful life
+  const getActivoUsefulLife = (act: any): string => {
+    const activeReval = act.inDetRevalSet?.find(
+      (det: any) => det.estado === 'A'
+    );
+
+    if (activeReval) {
+      const years = activeReval.vidaUtilAno;
+      const months = activeReval.vidaUtilMes;
+      return `${years}a ${months}m (Revaluado)`;
+    }
+
+    const defaultYears = act.codGrupo?.vidaUtilDefault;
+    if (defaultYears !== undefined && defaultYears !== null) {
+      return `${defaultYears} años (Grupo)`;
+    }
+
+    return 'No definida';
+  };
+
+  // Helper to resolve financial/depreciation values
+  const getActivoValues = (act: any) => {
+    const montoCompra = typeof act.monto === 'number' ? act.monto : (parseFloat(act.monto) || 0);
+    const depSet = act.inDepAcumuladaSet || [];
+    let depAcum = 0;
+    let valActual = montoCompra;
+
+    if (depSet.length > 0) {
+      const sorted = [...depSet].sort((a: any, b: any) => b.nroSerie - a.nroSerie);
+      const latest = sorted[0];
+      if (latest.acumulada !== null && latest.acumulada !== undefined) {
+        depAcum = typeof latest.acumulada === 'number' ? latest.acumulada : (parseFloat(latest.acumulada) || 0);
+      }
+      if (latest.valorActual !== null && latest.valorActual !== undefined) {
+        valActual = typeof latest.valorActual === 'number' ? latest.valorActual : (parseFloat(latest.valorActual) || 0);
+      }
+    }
+
+    return {
+      montoCompra,
+      depAcum,
+      valActual
+    };
+  };
+
+  const values = getActivoValues(activo);
+  const location = getActivoLocationName(activo);
+  const usefulLife = getActivoUsefulLife(activo);
+
+  // Construct highly informative QR payload
+  const qrString = [
+    `U.A.G.R.M. - VSIAF 2.0`,
+    `----------------------`,
+    `CÓDIGO: ${activo.codActivo}`,
+    `DETALLE: ${activo.descripcion}`,
+    `GRUPO: ${activo.codGrupo?.desGrupo || 'Sin Grupo'}`,
+    `UBICACIÓN: ${location}`,
+    `VIDA ÚTIL: ${usefulLife}`,
+    `COMPRA: ${values.montoCompra.toFixed(2)} Bs.`,
+    `DEP. ACUM.: ${values.depAcum.toFixed(2)} Bs.`,
+    `VALOR ACTUAL: ${values.valActual.toFixed(2)} Bs.`
+  ].join('\n');
+
+  return (
+    <div
+      className="modal-overlay"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000
+      }}
+      onClick={onClose}
+    >
+      <style>{`
+        @page {
+          size: 60mm 30mm;
+          margin: 0;
+        }
+        @media print {
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 60mm !important;
+            height: 30mm !important;
+            overflow: hidden !important;
+            background: transparent !important;
+          }
+          body * {
+            visibility: hidden !important;
+          }
+          #printable-label-card, #printable-label-card * {
+            visibility: visible !important;
+          }
+          #printable-label-card {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            margin: 0 !important;
+            padding: 2mm !important; /* Reducido para maximizar espacio */
+            border: none !important;
+            width: 60mm !important;
+            height: 30mm !important;
+            box-shadow: none !important;
+            background: white !important;
+            color: black !important;
+            box-sizing: border-box !important;
+            display: flex !important;
+            flex-direction: column !important;
+            justify-content: space-between !important;
+            transform: none !important;
+          }
+          .no-print-btn {
+            display: none !important;
+          }
+        }
+      `}</style>
+      <div
+        style={{
+          backgroundColor: '#fff',
+          borderRadius: '12px',
+          boxShadow: '0 8px 30px rgba(0,0,0,0.15)',
+          padding: '20px',
+          maxWidth: '360px',
+          width: '90%',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: '15px'
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 style={{ margin: 0, color: '#0f172a', fontWeight: 700, fontSize: '1.05rem' }}>
+          🏷️ Impresión de Etiqueta
+        </h3>
+
+        {/* Toggle buttons */}
+        <div className="no-print-btn" style={{ display: 'flex', gap: '10px', background: '#f1f5f9', padding: '4px', borderRadius: '8px', width: '100%', boxSizing: 'border-box' }}>
+          <button
+            onClick={() => setPrintMode('qr')}
+            style={{ flex: 1, padding: '6px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, background: printMode === 'qr' ? '#ffffff' : 'transparent', color: printMode === 'qr' ? '#0f172a' : '#64748b', boxShadow: printMode === 'qr' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none', border: 'none', cursor: 'pointer', transition: 'all 0.2s' }}
+          >
+            Código QR
+          </button>
+          <button
+            onClick={() => setPrintMode('barcode')}
+            style={{ flex: 1, padding: '6px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: 600, background: printMode === 'barcode' ? '#ffffff' : 'transparent', color: printMode === 'barcode' ? '#0f172a' : '#64748b', boxShadow: printMode === 'barcode' ? '0 2px 4px rgba(0,0,0,0.05)' : 'none', border: 'none', cursor: 'pointer', transition: 'all 0.2s' }}
+          >
+            Código de Barras
+          </button>
+        </div>
+        
+        {/* Printable Label Card container */}
+        <div
+          id="printable-label-card"
+          style={{
+            width: '240px',
+            height: '120px',
+            border: '2px solid #0f172a',
+            borderRadius: '6px',
+            padding: '8px',
+            boxSizing: 'border-box',
+            backgroundColor: '#ffffff',
+            color: '#000000', /* Uso de negro absoluto para impresoras térmicas */
+            fontFamily: 'system-ui, sans-serif',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between',
+            position: 'relative'
+          }}
+        >
+          {/* Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1.5px solid #000000', paddingBottom: '2px', marginBottom: '2px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', lineHeight: '1.1' }}>
+              <span style={{ fontSize: '10px', fontWeight: 900, color: '#000000', textTransform: 'uppercase', letterSpacing: '0.5px' }}>U.A.G.R.M.</span>
+              <span style={{ fontSize: '7px', fontWeight: 700, color: '#000000', textTransform: 'uppercase' }}>Activos Fijos</span>
+            </div>
+            <span style={{ fontSize: '8px', fontWeight: 800, border: '1.5px solid #000000', padding: '2px 4px', borderRadius: '4px', color: '#000000' }}>VSIAF 2.0</span>
+          </div>
+
+          {/* Main area: Left metadata, Right QR */}
+          <div style={{ display: 'flex', flex: 1, gap: '8px', alignItems: 'center', overflow: 'hidden' }}>
+            {/* Left metadata */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1, minWidth: 0, justifyContent: 'center' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', lineHeight: '1.2' }}>
+                <span style={{ fontSize: '6px', textTransform: 'uppercase', color: '#000000', fontWeight: 800, letterSpacing: '0.5px' }}>CÓDIGO DE ACTIVO</span>
+                <span style={{ fontSize: '11px', fontWeight: 900, color: '#000000', fontFamily: 'monospace' }}>{activo.codActivo}</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', lineHeight: '1.1' }}>
+                <span style={{ fontSize: '6px', textTransform: 'uppercase', color: '#000000', fontWeight: 800, letterSpacing: '0.5px' }}>DESCRIPCIÓN</span>
+                <span style={{ fontSize: '8px', fontWeight: 700, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', textOverflow: 'ellipsis', color: '#000000' }} title={activo.descripcion}>
+                  {activo.descripcion}
+                </span>
+              </div>
+            </div>
+
+            {/* Right QR */}
+            {printMode === 'qr' && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+                <QRCodeImage value={qrString} size={70} />
+              </div>
+            )}
+          </div>
+
+          {/* Bottom Barcode */}
+          {printMode === 'barcode' && (
+            <div style={{ paddingTop: '4px', marginTop: 'auto', display: 'flex', justifyContent: 'center', alignItems: 'center', width: '100%' }}>
+              <Code39Barcode value={activo.codActivo} height={38} showText={false} />
+            </div>
+          )}
+        </div>
+
+        {/* Modal controls (hidden during print) */}
+        <div className="no-print-btn" style={{ display: 'flex', gap: '8px', width: '100%' }}>
+          <button
+            className="btn btn-primary"
+            style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', fontSize: '0.8rem', padding: '8px' }}
+            onClick={() => window.print()}
+          >
+            🖨️ Imprimir
+          </button>
+          <button
+            className="btn btn-secondary"
+            style={{ flex: 1, fontSize: '0.8rem', padding: '8px' }}
+            onClick={onClose}
+          >
+            Cerrar
+          </button>
         </div>
       </div>
     </div>

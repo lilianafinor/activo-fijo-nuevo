@@ -2,7 +2,7 @@ import PageLayout from '../components/ui/PageLayout';
 import React, { useMemo } from 'react';
 import { useQuery, gql } from '@apollo/client';
 import { useAuth } from '../context/AuthContext';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 const GET_DASHBOARD_DATA = gql`
   query GetDashboardData {
@@ -38,6 +38,7 @@ const GET_DASHBOARD_DATA = gql`
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { data, loading, error, refetch } = useQuery(GET_DASHBOARD_DATA, {
     fetchPolicy: 'cache-and-network'
   });
@@ -291,7 +292,14 @@ export default function Dashboard() {
                   <div className="panel">
                     <div className="panel-header">Composición Física de Activos</div>
                     <div className="panel-body" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '180px', background: 'var(--bg-white)' }}>
-                      <DonutChart vigentes={statsActivos.activosCount} bajas={statsActivos.bajasCount} />
+                      <DonutChart
+                        vigentes={statsActivos.activosCount}
+                        bajas={statsActivos.bajasCount}
+                        onSliceClick={(label) => {
+                          if (label === 'Vigentes') navigate('/activos');
+                          if (label === 'Bajas') navigate('/bajas');
+                        }}
+                      />
                     </div>
                   </div>
                 )}
@@ -304,6 +312,12 @@ export default function Dashboard() {
                         acumulada={statsDepreciaciones?.acumulada || 0}
                         actual={statsDepreciaciones?.actual || 0}
                         bajas={statsBajas?.impacto || 0}
+                        onBarClick={(label) => {
+                          if (label === 'Val. Inicial') navigate('/activos');
+                          if (label === 'Dep. Acum.') navigate('/depreciaciones');
+                          if (label === 'Valor Neto') navigate('/depreciaciones');
+                          if (label === 'Imp. Bajas') navigate('/bajas');
+                        }}
                       />
                     </div>
                   </div>
@@ -391,8 +405,8 @@ export default function Dashboard() {
                         {statsDepreciaciones.recientes.length === 0 ? (
                           <div style={{ fontSize: '0.7rem', color: '#7a96b8', fontStyle: 'italic' }}>No hay registros de depreciación recientes.</div>
                         ) : (
-                          statsDepreciaciones.recientes.map((d: any) => (
-                            <div key={d.nroSerie} className="dash-list-item">
+                          statsDepreciaciones.recientes.map((d: any, idx: number) => (
+                            <div key={`${d.nroSerie}-${idx}`} className="dash-list-item">
                               <span>Depreciación Serie #{d.nroSerie}</span>
                               <span className="dash-stat-inner-val depreciacion" style={{ fontSize: '0.72rem' }}>
                                 -{parseFloat(d.depresiacion).toFixed(2)} Bs.
@@ -430,8 +444,8 @@ export default function Dashboard() {
                         {statsIngresos.recientes.length === 0 ? (
                           <div style={{ fontSize: '0.7rem', color: '#7a96b8', fontStyle: 'italic' }}>No hay ingresos recientes.</div>
                         ) : (
-                          statsIngresos.recientes.map((i: any) => (
-                            <div key={i.nroIngreso} className="dash-list-item">
+                          statsIngresos.recientes.map((i: any, idx: number) => (
+                            <div key={`${i.nroIngreso}-${idx}`} className="dash-list-item">
                               <div style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: '75%' }}>
                                 <strong style={{ fontFamily: 'monospace' }}>#{i.nroIngreso}</strong>
                                 <span style={{ color: '#4a6490', marginLeft: '6px', fontStyle: 'italic' }}>{i.glosa || 'Sin glosa'}</span>
@@ -500,7 +514,7 @@ export default function Dashboard() {
 }
 
 // ==================== VISUAL CHART COMPONENTS (SVG NATIVE) ====================
-function DonutChart({ vigentes, bajas }: { vigentes: number, bajas: number }) {
+function DonutChart({ vigentes, bajas, onSliceClick }: { vigentes: number, bajas: number, onSliceClick?: (label: string) => void }) {
   const total = vigentes + bajas;
   if (total === 0) {
     return (
@@ -522,6 +536,24 @@ function DonutChart({ vigentes, bajas }: { vigentes: number, bajas: number }) {
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', justifyContent: 'center', flexWrap: 'wrap', width: '100%' }}>
+      <style>{`
+        .clickable-slice {
+          transition: all 0.25s ease-in-out;
+          transform-origin: center;
+        }
+        .clickable-slice:hover {
+          stroke-width: 14.5px;
+          filter: brightness(1.2);
+        }
+        .clickable-legend {
+          transition: all 0.2s ease;
+          padding: 3px 6px;
+          border-radius: 4px;
+        }
+        .clickable-legend:hover {
+          background-color: #f1f5f9;
+        }
+      `}</style>
       <div style={{ position: 'relative', width: '100px', height: '100px' }}>
         <svg width="100%" height="100%" viewBox="0 0 100 100" style={{ transform: 'rotate(-90deg)' }}>
           {/* Background circle */}
@@ -536,6 +568,7 @@ function DonutChart({ vigentes, bajas }: { vigentes: number, bajas: number }) {
           {/* Vigentes slice (Blue) */}
           {vigentes > 0 && (
             <circle
+              className="clickable-slice"
               cx="50"
               cy="50"
               r={radius}
@@ -544,12 +577,14 @@ function DonutChart({ vigentes, bajas }: { vigentes: number, bajas: number }) {
               strokeWidth={strokeWidth}
               strokeDasharray={`${vigentesLength} ${circumference}`}
               strokeDashoffset="0"
-              style={{ transition: 'stroke-dasharray 0.5s ease' }}
+              style={{ transition: 'stroke-dasharray 0.5s ease', cursor: 'pointer' }}
+              onClick={() => onSliceClick?.('Vigentes')}
             />
           )}
           {/* Bajas slice (Red) */}
           {bajas > 0 && (
             <circle
+              className="clickable-slice"
               cx="50"
               cy="50"
               r={radius}
@@ -558,7 +593,8 @@ function DonutChart({ vigentes, bajas }: { vigentes: number, bajas: number }) {
               strokeWidth={strokeWidth}
               strokeDasharray={`${bajasLength} ${circumference}`}
               strokeDashoffset={`-${vigentesLength}`}
-              style={{ transition: 'stroke-dasharray 0.5s ease' }}
+              style={{ transition: 'stroke-dasharray 0.5s ease', cursor: 'pointer' }}
+              onClick={() => onSliceClick?.('Bajas')}
             />
           )}
         </svg>
@@ -576,12 +612,12 @@ function DonutChart({ vigentes, bajas }: { vigentes: number, bajas: number }) {
         </div>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '0.75rem', minWidth: '120px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <div className="clickable-legend" style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }} onClick={() => onSliceClick?.('Vigentes')}>
           <div style={{ width: '10px', height: '10px', background: 'var(--blue)' }}></div>
           <span style={{ fontWeight: 'bold', color: 'var(--text-primary)' }}>Vigentes:</span>
           <span style={{ marginLeft: 'auto', fontFamily: 'monospace' }}>{vigentes} ({pctVigentes.toFixed(1)}%)</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <div className="clickable-legend" style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }} onClick={() => onSliceClick?.('Bajas')}>
           <div style={{ width: '10px', height: '10px', background: '#cc0000' }}></div>
           <span style={{ fontWeight: 'bold', color: 'var(--text-primary)' }}>Bajas:</span>
           <span style={{ marginLeft: 'auto', fontFamily: 'monospace' }}>{bajas} ({pctBajas.toFixed(1)}%)</span>
@@ -591,7 +627,7 @@ function DonutChart({ vigentes, bajas }: { vigentes: number, bajas: number }) {
   );
 }
 
-function BarChart({ valoracion, acumulada, actual, bajas }: { valoracion: number, acumulada: number, actual: number, bajas: number }) {
+function BarChart({ valoracion, acumulada, actual, bajas, onBarClick }: { valoracion: number, acumulada: number, actual: number, bajas: number, onBarClick?: (label: string) => void }) {
   const values = [valoracion, acumulada, actual, bajas];
   const maxVal = Math.max(...values, 100); // Evitar división por cero, escala mínima 100
   
@@ -620,6 +656,18 @@ function BarChart({ valoracion, acumulada, actual, bajas }: { valoracion: number
 
   return (
     <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      <style>{`
+        .clickable-bar-group {
+          transition: all 0.2s ease-in-out;
+        }
+        .clickable-bar-group:hover rect.val-rect {
+          filter: brightness(1.25);
+        }
+        .clickable-bar-group:hover text {
+          fill: #000000 !important;
+          font-weight: 800 !important;
+        }
+      `}</style>
       <svg width="100%" height={svgHeight} viewBox={`0 0 ${svgWidth} ${svgHeight}`} style={{ overflow: 'visible' }}>
         {/* Líneas de cuadrícula e indicador de eje Y */}
         {[0, 0.25, 0.5, 0.75, 1].map((ratio, index) => {
@@ -657,14 +705,15 @@ function BarChart({ valoracion, acumulada, actual, bajas }: { valoracion: number
           const y = paddingTop + chartHeight - barHeight;
 
           return (
-            <g key={i}>
+            <g key={i} className="clickable-bar-group" style={{ cursor: 'pointer' }} onClick={() => onBarClick?.(c.label)}>
               <rect
+                className="val-rect"
                 x={x}
                 y={y}
                 width={barWidth}
                 height={Math.max(barHeight, 2)} // Altura mínima de 2px para que se note
                 fill={c.color}
-                style={{ transition: 'all 0.5s ease', cursor: 'pointer' }}
+                style={{ transition: 'all 0.5s ease' }}
               />
               {c.val > 0 && (
                 <text

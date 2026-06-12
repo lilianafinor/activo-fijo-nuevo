@@ -395,7 +395,6 @@ export default function Vehiculos() {
     }
   }, [printTarget]);
 
-  if (loading) return <div className="loading">Cargando flota de vehículos...</div>;
   if (error) return <div className="error">Error: {error.message}</div>;
 
   const vehiculosList = filteredVehiculos;
@@ -488,7 +487,7 @@ export default function Vehiculos() {
 
       {/* RENDER NORMAL VIEW */}
       <div className="no-print">
-        {vehiculosList.length === 0 ? (
+        {(!loading && vehiculosList.length === 0) ? (
           <div className="table-empty" style={{ border: '1px solid var(--border)', background: 'var(--bg-white)', padding: '2rem', textAlign: 'center' }}>
             <h3 style={{ fontSize: '0.95rem', fontWeight: 'bold', color: 'var(--navy)', marginBottom: '0.25rem' }}>No se encontraron vehículos</h3>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Intente cambiar los filtros o registre un nuevo vehículo.</p>
@@ -511,7 +510,23 @@ export default function Vehiculos() {
                 </tr>
               </thead>
               <tbody>
-                {vehiculosList.map((v: any) => (
+                {loading ? (
+                  Array.from({ length: 5 }).map((_, idx) => (
+                    <tr key={idx} className="animate-pulse border-b border-slate-700/30">
+                      <td><div className="h-8 bg-slate-700 rounded w-10 mx-auto"></div></td>
+                      <td><div className="h-4 bg-slate-700 rounded w-20"></div></td>
+                      <td><div className="h-4 bg-slate-700 rounded w-44"></div></td>
+                      <td><div className="h-4 bg-slate-700 rounded w-16"></div></td>
+                      <td><div className="h-4 bg-slate-700 rounded w-16"></div></td>
+                      <td><div className="h-4 bg-slate-700 rounded w-24"></div></td>
+                      <td><div className="h-4 bg-slate-700 rounded w-20"></div></td>
+                      <td><div className="h-6 bg-slate-700 rounded w-28"></div></td>
+                      <td><div className="h-4 bg-slate-700 rounded w-16"></div></td>
+                      <td><div className="h-6 bg-slate-700 rounded w-28 mx-auto"></div></td>
+                    </tr>
+                  ))
+                ) : (
+                  vehiculosList.map((v: any) => (
                   <tr key={v.nroActivo?.nroActivo}>
                     <td style={{ textAlign: 'center', padding: '4px' }}>
                       {v.imagen ? (
@@ -535,7 +550,7 @@ export default function Vehiculos() {
                     <td style={{ fontFamily: 'monospace', fontWeight: 'bold', color: 'var(--navy)' }}>
                       {v.nroActivo?.codActivo}
                     </td>
-                    <td>{v.nroActivo?.descripcion}</td>
+                    <td className="max-w-[200px] truncate" title={v.nroActivo?.descripcion}>{v.nroActivo?.descripcion}</td>
                     <td style={{ fontFamily: 'monospace', fontWeight: 'bold', textTransform: 'uppercase' }}>
                       {v.placa ? v.placa.toUpperCase() : 'SIN PLACA'}
                     </td>
@@ -578,7 +593,7 @@ export default function Vehiculos() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                )))}
               </tbody>
             </table>
           </div>
@@ -787,7 +802,15 @@ export default function Vehiculos() {
                   <input type="text" name="industria" value={form.industria} onChange={handleChange} placeholder="Ej: Japón" />
                 </div>
                 <div className="form-group">
-                  <label>RUAT <span style={{ color: 'var(--text-muted)', fontWeight: 'normal', fontSize: '0.7rem' }}>(Opcional)</span></label>
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <label className="mb-0">RUAT <span style={{ color: 'var(--text-muted)', fontWeight: 'normal', fontSize: '0.7rem' }}>(Opcional)</span></label>
+                    <span 
+                      className="cursor-help text-blue-400 hover:text-blue-300 font-bold font-mono text-[10px] select-none bg-blue-500/10 border border-blue-500/20 w-4 h-4 rounded-full flex items-center justify-center transition-all"
+                      title="Registro Único para la Administración Tributaria Municipal del vehículo."
+                    >
+                      ?
+                    </span>
+                  </div>
                   <input type="text" name="ruat" value={form.ruat} onChange={handleChange} placeholder="Nro RUAT" />
                 </div>
                 <div className="form-group">

@@ -319,7 +319,6 @@ export default function Revaluos() {
     });
   }, [data?.todosRevaluos, searchQuery, estadoFilter]);
 
-  if (loading) return <div className="loading">Cargando revalúos y depreciaciones...</div>;
   if (error) return <div className="error">Error: {error.message}</div>;
 
   if (!puedeVer) {
@@ -399,167 +398,186 @@ export default function Revaluos() {
             </tr>
           </thead>
           <tbody>
-            {filteredRevaluos.length === 0 && (
+            {loading ? (
+              Array.from({ length: 5 }).map((_, idx) => (
+                <tr key={idx} className="animate-pulse">
+                  <td><div className="h-4 bg-gray-200 rounded w-8"></div></td>
+                  <td><div className="h-4 bg-gray-200 rounded w-32"></div></td>
+                  <td><div className="h-4 bg-gray-200 rounded w-20"></div></td>
+                  <td><div className="h-4 bg-gray-200 rounded w-24"></div></td>
+                  <td><div className="h-4 bg-gray-200 rounded w-24"></div></td>
+                  <td><div className="h-4 bg-gray-200 rounded w-16"></div></td>
+                  <td><div className="h-8 bg-gray-200 rounded w-32"></div></td>
+                </tr>
+              ))
+            ) : filteredRevaluos.length === 0 ? (
               <tr><td colSpan={7} className="empty">No se encontraron revalúos</td></tr>
-            )}
-            {filteredRevaluos.map((r: any) => {
-              const isExpanded = !!expandedRevals[r.codReval];
-              const hasPdf = r.documento && (r.documento.toLowerCase().endsWith('.pdf') || r.documento.startsWith('/media'));
-              
-              return (
-                <React.Fragment key={r.codReval}>
-                  <tr style={{ background: isExpanded ? '#f8fafc' : 'white' }}>
-                    <td><strong>#{r.codReval}</strong></td>
-                    <td>{TIPO_LABEL[r.tipoReval] || r.tipoReval}</td>
-                    <td>
-                      {hasPdf ? (
-                        <a
-                          href={`http://localhost:8000${r.documento}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="btn btn-secondary btn-sm"
-                          style={{ textDecoration: 'none', padding: '2px 8px', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
-                        >
-                          Ver PDF
-                        </a>
-                      ) : r.estado === 'A' && puedeAutorizar ? (
-                        <div style={{ position: 'relative', display: 'inline-block' }}>
-                          <button className="btn btn-secondary btn-sm" style={{ padding: '2px 8px', fontSize: '0.75rem' }}>
-                            Subir PDF
-                          </button>
-                          <input
-                            type="file"
-                            accept="application/pdf"
-                            style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}
-                            onChange={e => handleUploadComprobanteExistente(r.codReval, e.target.files?.[0])}
-                          />
-                        </div>
-                      ) : (
-                        <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>Sin PDF</span>
-                      )}
-                    </td>
-                    <td>{r.fechaIni || '-'}</td>
-                    <td>{r.fechaFin || '-'}</td>
-                    <td>
-                      <span className={`badge ${ESTADO_CLASS[r.estado] || 'badge-secondary'}`}>
-                        {ESTADO_LABEL[r.estado] || r.estado}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="btn-group">
-                        <button
-                          className="btn btn-info btn-sm"
-                          onClick={() => toggleExpand(r.codReval)}
-                        >
-                          {isExpanded ? 'Ocultar Detalle' : 'Ver Activos'}
-                        </button>
-                        
-                        {r.estado === 'A' && puedeAutorizar && (
-                          <>
-                            <button
-                              className="btn btn-success btn-sm"
-                              onClick={() => {
-                                setRevaluoSeleccionado(r);
-                                setFormDet({
-                                  nroActivo: '',
-                                  vidaUtilMes: '',
-                                  vidaUtilAno: '',
-                                  costo: '',
-                                  fechaReval: r.fechaIni || '',
-                                  nroSerie: '1'
-                                });
-                                setAssetSearch('');
-                                setActivoSeleccionado(null);
-                                setDepCalculada(null);
-                                setShowDetModal(true);
-                              }}
-                            >
-                              + Activo
+            ) : (
+              filteredRevaluos.map((r: any) => {
+                const isExpanded = !!expandedRevals[r.codReval];
+                const hasPdf = r.documento && (r.documento.toLowerCase().endsWith('.pdf') || r.documento.startsWith('/media'));
+                
+                return (
+                  <React.Fragment key={r.codReval}>
+                    <tr style={{ background: isExpanded ? '#f8fafc' : 'white' }}>
+                      <td><strong>#{r.codReval}</strong></td>
+                      <td>{TIPO_LABEL[r.tipoReval] || r.tipoReval}</td>
+                      <td>
+                        {hasPdf ? (
+                          <a
+                            href={`http://localhost:8000${r.documento}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="btn btn-secondary btn-sm"
+                            style={{ textDecoration: 'none', padding: '2px 8px', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                          >
+                            Ver PDF
+                          </a>
+                        ) : r.estado === 'A' && puedeAutorizar ? (
+                          <div style={{ position: 'relative', display: 'inline-block' }}>
+                            <button className="btn btn-secondary btn-sm" style={{ padding: '2px 8px', fontSize: '0.75rem' }}>
+                              Subir PDF
                             </button>
-                            <button
-                              className="btn btn-warning btn-sm"
-                              onClick={() => handleCerrarRevaluo(r.codReval)}
-                            >
-                              Cerrar
-                            </button>
-                            <button
-                              className="btn btn-danger btn-sm"
-                              onClick={() => handleAnularRevaluo(r.codReval)}
-                            >
-                              Anular
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-
-                  {/* Fila Desplegable con Detalles de Activos */}
-                  {isExpanded && (
-                    <tr>
-                      <td colSpan={7} style={{ background: '#f8fafc', padding: '1.25rem 2rem' }}>
-                        <div style={{ fontWeight: 600, fontSize: '0.85rem', color: '#1e293b', marginBottom: '0.6rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                          Activos revalorizados en esta resolución
-                        </div>
-                        
-                        {(!r.inDetRevalSet || r.inDetRevalSet.filter((d: any) => d.estado !== 'B').length === 0) ? (
-                          <div style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '0.82rem', padding: '0.5rem 0' }}>
-                            Ningún activo ha sido revaluado aún bajo esta resolución.
+                            <input
+                              type="file"
+                              accept="application/pdf"
+                              style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}
+                              onChange={e => handleUploadComprobanteExistente(r.codReval, e.target.files?.[0])}
+                            />
                           </div>
                         ) : (
-                          <table style={{ width: '100%', background: 'white', borderRadius: '8px', border: '1px solid #e2e8f0', borderCollapse: 'collapse', overflow: 'hidden' }}>
-                            <thead>
-                              <tr style={{ background: '#f1f5f9' }}>
-                                <th style={{ padding: '0.6rem 1rem', fontSize: '0.78rem', color: '#475569', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>Código Activo</th>
-                                <th style={{ padding: '0.6rem 1rem', fontSize: '0.78rem', color: '#475569', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>Descripción</th>
-                                <th style={{ padding: '0.6rem 1rem', fontSize: '0.78rem', color: '#475569', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>Monto Original</th>
-                                <th style={{ padding: '0.6rem 1rem', fontSize: '0.78rem', color: '#475569', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>Costo Revaluado</th>
-                                <th style={{ padding: '0.6rem 1rem', fontSize: '0.78rem', color: '#475569', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>Diferencia</th>
-                                <th style={{ padding: '0.6rem 1rem', fontSize: '0.78rem', color: '#475569', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>Nueva Vida Útil</th>
-                                <th style={{ padding: '0.6rem 1rem', fontSize: '0.78rem', color: '#475569', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>Fecha</th>
-                                {r.estado === 'A' && puedeAutorizar && <th style={{ padding: '0.6rem 1rem', fontSize: '0.78rem', color: '#475569', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>Acciones</th>}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {r.inDetRevalSet.filter((d: any) => d.estado !== 'B').map((det: any, idx: number) => {
-                                const origVal = parseFloat(det.nroActivo?.monto || '0');
-                                const newVal = parseFloat(det.costo || '0');
-                                const diff = newVal - origVal;
-                                
-                                return (
-                                  <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                    <td style={{ padding: '0.6rem 1rem', fontSize: '0.82rem' }}><strong>{det.nroActivo?.codActivo}</strong></td>
-                                    <td style={{ padding: '0.6rem 1rem', fontSize: '0.82rem' }}>{det.nroActivo?.descripcion}</td>
-                                    <td style={{ padding: '0.6rem 1rem', fontSize: '0.82rem' }}>Bs. {origVal.toFixed(2)}</td>
-                                    <td style={{ padding: '0.6rem 1rem', fontSize: '0.82rem', fontWeight: 600 }}>Bs. {newVal.toFixed(2)}</td>
-                                    <td style={{ padding: '0.6rem 1rem', fontSize: '0.82rem', color: diff >= 0 ? '#10b981' : '#ef4444' }}>
-                                      {diff >= 0 ? '+' : ''}Bs. {diff.toFixed(2)}
-                                    </td>
-                                    <td style={{ padding: '0.6rem 1rem', fontSize: '0.82rem' }}>{det.vidaUtilAno}a {det.vidaUtilMes}m</td>
-                                    <td style={{ padding: '0.6rem 1rem', fontSize: '0.82rem' }}>{det.fechaReval}</td>
-                                    {r.estado === 'A' && puedeAutorizar && (
-                                      <td style={{ padding: '0.6rem 1rem' }}>
-                                        <button
-                                          className="btn btn-danger btn-sm"
-                                          style={{ padding: '2px 6px', fontSize: '0.75rem' }}
-                                          onClick={() => handleAnularDetalle(r.codReval, det.nroActivo.nroActivo)}
-                                        >
-                                          Retirar
-                                        </button>
-                                      </td>
-                                    )}
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
+                          <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>Sin PDF</span>
                         )}
                       </td>
+                      <td>{r.fechaIni || '-'}</td>
+                      <td>{r.fechaFin || '-'}</td>
+                      <td>
+                        <span className={`badge ${ESTADO_CLASS[r.estado] || 'badge-secondary'}`}>
+                          {ESTADO_LABEL[r.estado] || r.estado}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="btn-group">
+                          <button
+                            className="btn btn-info btn-sm"
+                            onClick={() => toggleExpand(r.codReval)}
+                          >
+                            {isExpanded ? 'Ocultar Detalle' : 'Ver Activos'}
+                          </button>
+                          
+                          {r.estado === 'A' && puedeAutorizar && (
+                            <>
+                              <button
+                                className="btn btn-success btn-sm"
+                                onClick={() => {
+                                  setRevaluoSeleccionado(r);
+                                  setFormDet({
+                                    nroActivo: '',
+                                    vidaUtilMes: '',
+                                    vidaUtilAno: '',
+                                    costo: '',
+                                    fechaReval: r.fechaIni || '',
+                                    nroSerie: '1'
+                                  });
+                                  setAssetSearch('');
+                                  setActivoSeleccionado(null);
+                                  setDepCalculada(null);
+                                  setShowDetModal(true);
+                                }}
+                              >
+                                + Activo
+                              </button>
+                              <button
+                                className="btn btn-warning btn-sm"
+                                onClick={() => handleCerrarRevaluo(r.codReval)}
+                              >
+                                Cerrar
+                              </button>
+                              <button
+                                className="btn btn-danger btn-sm"
+                                onClick={() => handleAnularRevaluo(r.codReval)}
+                              >
+                                Anular
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </td>
                     </tr>
-                  )}
-                </React.Fragment>
-              );
-            })}
+
+                    {/* Fila Desplegable con Detalles de Activos */}
+                    {isExpanded && (
+                      <tr>
+                        <td colSpan={7} style={{ background: '#f8fafc', padding: '1.25rem 2rem' }}>
+                          <div style={{ fontWeight: 600, fontSize: '0.85rem', color: '#1e293b', marginBottom: '0.6rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                            Activos revalorizados en esta resolución
+                          </div>
+                          
+                          {(!r.inDetRevalSet || r.inDetRevalSet.filter((d: any) => d.estado !== 'B').length === 0) ? (
+                            <div style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '0.82rem', padding: '0.5rem 0' }}>
+                              Ningún activo ha sido revaluado aún bajo esta resolución.
+                            </div>
+                          ) : (
+                            <table style={{ width: '100%', background: 'white', borderRadius: '8px', border: '1px solid #e2e8f0', borderCollapse: 'collapse', overflow: 'hidden' }}>
+                              <thead>
+                                <tr style={{ background: '#f1f5f9' }}>
+                                  <th style={{ padding: '0.6rem 1rem', fontSize: '0.78rem', color: '#475569', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>Código Activo</th>
+                                  <th style={{ padding: '0.6rem 1rem', fontSize: '0.78rem', color: '#475569', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>Descripción</th>
+                                  <th style={{ padding: '0.6rem 1rem', fontSize: '0.78rem', color: '#475569', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>Monto Original</th>
+                                  <th style={{ padding: '0.6rem 1rem', fontSize: '0.78rem', color: '#475569', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>Costo Revaluado</th>
+                                  <th style={{ padding: '0.6rem 1rem', fontSize: '0.78rem', color: '#475569', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>Diferencia</th>
+                                  <th style={{ padding: '0.6rem 1rem', fontSize: '0.78rem', color: '#475569', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>Nueva Vida Útil</th>
+                                  <th style={{ padding: '0.6rem 1rem', fontSize: '0.78rem', color: '#475569', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>Fecha</th>
+                                  {r.estado === 'A' && puedeAutorizar && <th style={{ padding: '0.6rem 1rem', fontSize: '0.78rem', color: '#475569', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>Acciones</th>}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {r.inDetRevalSet.filter((d: any) => d.estado !== 'B').map((det: any, idx: number) => {
+                                  const origVal = parseFloat(det.nroActivo?.monto || '0');
+                                  const newVal = parseFloat(det.costo || '0');
+                                  const diff = newVal - origVal;
+                                  
+                                  return (
+                                    <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                      <td style={{ padding: '0.6rem 1rem', fontSize: '0.82rem' }}><strong>{det.nroActivo?.codActivo}</strong></td>
+                                      <td
+                                        style={{ padding: '0.6rem 1rem', fontSize: '0.82rem', maxWidth: '250px' }}
+                                        className="truncate"
+                                        title={det.nroActivo?.descripcion}
+                                      >
+                                        {det.nroActivo?.descripcion}
+                                      </td>
+                                      <td style={{ padding: '0.6rem 1rem', fontSize: '0.82rem' }}>Bs. {origVal.toFixed(2)}</td>
+                                      <td style={{ padding: '0.6rem 1rem', fontSize: '0.82rem', fontWeight: 600 }}>Bs. {newVal.toFixed(2)}</td>
+                                      <td style={{ padding: '0.6rem 1rem', fontSize: '0.82rem', color: diff >= 0 ? '#10b981' : '#ef4444' }}>
+                                        {diff >= 0 ? '+' : ''}Bs. {diff.toFixed(2)}
+                                      </td>
+                                      <td style={{ padding: '0.6rem 1rem', fontSize: '0.82rem' }}>{det.vidaUtilAno}a {det.vidaUtilMes}m</td>
+                                      <td style={{ padding: '0.6rem 1rem', fontSize: '0.82rem' }}>{det.fechaReval}</td>
+                                      {r.estado === 'A' && puedeAutorizar && (
+                                        <td style={{ padding: '0.6rem 1rem' }}>
+                                          <button
+                                            className="btn btn-danger btn-sm"
+                                            style={{ padding: '2px 6px', fontSize: '0.75rem' }}
+                                            onClick={() => handleAnularDetalle(r.codReval, det.nroActivo.nroActivo)}
+                                          >
+                                            Retirar
+                                          </button>
+                                        </td>
+                                      )}
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })
+            )}
           </tbody>
         </table>
       </div>
@@ -595,7 +613,10 @@ export default function Revaluos() {
               </div>
 
               <div className="form-group form-group-full">
-                <label>Comprobante PDF (Opcional)</label>
+                <label>
+                  Comprobante PDF (Opcional)
+                  <span className="text-blue-500 cursor-help ml-1" title="Suba el documento de resolución escaneado en formato PDF.">🛈</span>
+                </label>
                 <input
                   type="file"
                   accept="application/pdf"
@@ -667,7 +688,7 @@ export default function Revaluos() {
                     <ul className="autocomplete-dropdown">
                       {filteredActivos.slice(0, 10).map((a: any) => (
                         <li
-                          key={a.nroActivo}
+                           key={a.nroActivo}
                           className="autocomplete-item"
                           onClick={() => handleSelectActivo(a)}
                         >
@@ -693,7 +714,10 @@ export default function Revaluos() {
               </div>
 
               <div className="form-group">
-                <label>Nuevo Costo Revaluado (Bs.) *</label>
+                <label>
+                  Nuevo Costo Revaluado (Bs.) *
+                  <span className="text-blue-500 cursor-help ml-1" title="El nuevo valor asignado al activo fijo según tasación técnica o reajuste contable.">🛈</span>
+                </label>
                 <input
                   type="number"
                   placeholder="Ej: 5200.00"
@@ -715,7 +739,10 @@ export default function Revaluos() {
               </div>
 
               <div className="form-group">
-                <label>Nueva Vida Útil (Años) *</label>
+                <label>
+                  Nueva Vida Útil (Años) *
+                  <span className="text-blue-500 cursor-help ml-1" title="La nueva estimación de años de vida útil que le restan al activo tras el revalúo.">🛈</span>
+                </label>
                 <input
                   type="number"
                   placeholder="Ej: 5"
@@ -728,7 +755,10 @@ export default function Revaluos() {
               </div>
 
               <div className="form-group">
-                <label>Vida Útil (Meses adicionales)</label>
+                <label>
+                  Vida Útil (Meses adicionales)
+                  <span className="text-blue-500 cursor-help ml-1" title="Meses adicionales a los años de vida útil. La suma de años y meses debe ser al menos 1 mes.">🛈</span>
+                </label>
                 <input
                   type="number"
                   placeholder="Ej: 0"
@@ -741,7 +771,10 @@ export default function Revaluos() {
               </div>
 
               <div className="form-group">
-                <label>Nro. Serie Depreciación</label>
+                <label>
+                  Nro. Serie Depreciación
+                  <span className="text-blue-500 cursor-help ml-1" title="Secuencia o número de serie del registro de depreciación para este activo.">🛈</span>
+                </label>
                 <input
                   type="number"
                   value={formDet.nroSerie}

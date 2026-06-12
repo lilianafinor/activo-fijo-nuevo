@@ -12,6 +12,7 @@ export interface ActionButton {
   disabled?: boolean;
   variant?: 'default' | 'primary' | 'danger';
   separator?: boolean; // línea separadora antes de este botón
+  show?: boolean;      // opcional para ocultar botones dinámicamente
 }
 
 interface PageLayoutProps {
@@ -57,10 +58,10 @@ export default function PageLayout({
           {children}
         </div>
 
-        {/* Panel de acciones lateral (si hay acciones) */}
-        {actions.length > 0 && (
+        {/* Panel de acciones lateral (si hay acciones visibles) */}
+        {actions.some(a => a.show !== false) && (
           <div className="action-panel">
-            {actions.map((btn, idx) => (
+            {actions.filter(a => a.show !== false).map((btn, idx) => (
               <React.Fragment key={idx}>
                 {btn.separator && <div className="action-separator" />}
                 <button

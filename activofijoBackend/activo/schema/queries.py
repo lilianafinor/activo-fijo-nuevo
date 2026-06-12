@@ -162,7 +162,7 @@ class Query(graphene.ObjectType):
     # ── Authentication and RBAC ─────────────────────────────────
     usuario_actual      = graphene.Field(InUsuarioType)
     mis_permisos        = graphene.List(graphene.String)
-
+    oficinas_a_cargo             = graphene.List(InOficinaType)
     todos_roles         = graphene.List(InRolType)
     rol                 = graphene.Field(InRolType, id_rol=graphene.Int(required=True))
 
@@ -198,7 +198,8 @@ class Query(graphene.ObjectType):
         offset=graphene.Int(default_value=0),
         search=graphene.String(),
         solo_activos=graphene.Boolean(default_value=True),
-        solo_aprobados=graphene.Boolean(default_value=False)
+        solo_aprobados=graphene.Boolean(default_value=False),
+        solo_pendientes=graphene.Boolean(default_value=False)
     )
 
     todos_vehiculos_paginados = graphene.Field(
@@ -470,6 +471,16 @@ class Query(graphene.ObjectType):
         return in_asignado.objects.get(pk=cod_asig)
     def resolve_asignaciones_por_oficina(root, info, cod_ofic):
         return in_asignado.objects.filter(cod_ofic_id=cod_ofic)
+
+    def resolve_oficinas_a_cargo(root, info):
+        user = getattr(info.context, 'user', None)
+        if not user or not hasattr(user, 'id_empleado') or not user.id_empleado:
+            return []
+        id_empleado = user.id_empleado.id_empleado
+        asig_oficinas_ids = in_asignado.objects.filter(cod_resp=id_empleado, estado='A').values_list('cod_ofic_id', flat=True)
+        encargado_oficinas_ids = in_encargado.objects.filter(cod_resp=id_empleado, cod_asig__estado='A').values_list('cod_asig__cod_ofic_id', flat=True)
+        all_ofic_ids = set(list(asig_oficinas_ids) + list(encargado_oficinas_ids))
+        return in_oficina.objects.filter(pk__in=all_ofic_ids)
     def resolve_det_asig_por_asignacion(root, info, cod_asig):
         return in_det_asig.objects.filter(cod_asig_id=cod_asig).select_related('nro_activo')
     def resolve_encargados_por_asignacion(root, info, cod_asig):
@@ -555,7 +566,7 @@ class Query(graphene.ObjectType):
         ).values_list('id_permiso__nombre', flat=True).distinct())
 
     def resolve_todos_roles(root, info):
-        return in_rol.objects.all()
+        return in_rol.objects.prefetch_related('permisos__id_permiso').all()
 
     def resolve_rol(root, info, id_rol):
         return in_rol.objects.get(pk=id_rol)
@@ -573,7 +584,7 @@ class Query(graphene.ObjectType):
         return in_empleado.objects.get(pk=id_empleado)
 
     def resolve_todos_usuarios(root, info):
-        return in_usuario.objects.all()
+        return in_usuario.objects.select_related('id_empleado').prefetch_related('roles_permisos__id_rol', 'roles_permisos__id_permiso').all()
 
     def resolve_usuario(root, info, id_usuario):
         return in_usuario.objects.get(pk=id_usuario)
@@ -620,7 +631,7 @@ class Query(graphene.ObjectType):
         return in_log_baja_act.objects.all().order_by('-id')
 
     # ── Resolvers de consultas paginadas ────────────────────────
-    def resolve_todos_activos_paginados(root, info, limit=15, offset=0, search=None, solo_activos=True, solo_aprobados=False):
+    def resolve_todos_activos_paginados(root, info, limit=15, offset=0, search=None, solo_activos=True, solo_aprobados=False, solo_pendientes=False):
         qs = in_activo.objects.select_related(
             'cod_gest', 'cod_grupo', 'cod_unidad', 'cod_marca',
             'cod_modelo', 'cod_prove', 'cod_cond', 'cod_estado', 'nro_ingreso'
@@ -629,6 +640,8 @@ class Query(graphene.ObjectType):
             qs = qs.exclude(a_b='B')
         if solo_aprobados:
             qs = qs.filter(estado_registro='APROBADO')
+        if solo_pendientes:
+            qs = qs.filter(estado_registro='ELABORADO')
         if search:
             from django.db.models import Q
             q_obj = Q(descripcion__icontains=search) | Q(cod_activo__icontains=search) | Q(nro_serie__icontains=search)
@@ -657,7 +670,7 @@ class Query(graphene.ObjectType):
             qs = qs.filter(estado=estado)
         if search:
             from django.db.models import Q
-            q_obj = Q(obs__icontains=search) | Q(cod_ofic__des_dpto__icontains=search)
+            q_obj = Q(tipo_asig__des__icontains=search) | Q(cod_ofic__des_dpto__icontains=search)
             if search.isdigit():
                 q_obj |= Q(cod_asig=int(search)) | Q(cod_resp=int(search)) | Q(cod_ofic=int(search))
             qs = qs.filter(q_obj)

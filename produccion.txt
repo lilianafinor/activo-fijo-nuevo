@@ -1,0 +1,50 @@
+=========================================================
+GUÍA DE PASE A PRODUCCIÓN - ACTIVO FIJO NUEVO
+=========================================================
+
+Esta guía detalla los pasos de seguridad y configuración 
+para mover la aplicación de un entorno local a un entorno 
+de producción expuesto a internet.
+
+1. CONFIGURACIÓN DEL BACKEND (Django)
+---------------------------------------------------------
+En el archivo `activofijoBackend/.env`, asegúrate de 
+configurar los siguientes valores:
+
+- DEBUG=False
+  ¡CRÍTICO! Esto oculta los errores detallados y el código fuente a los usuarios.
+
+- SECRET_KEY="<una-clave-larga-y-aleatoria>"
+  Genera una nueva clave secreta para producción. No uses la de desarrollo.
+
+- CORS_ALLOW_ALL_ORIGINS=False
+  Apaga esta opción.
+
+Adicionalmente, en `settings.py` asegúrate de que:
+- ALLOWED_HOSTS = ['tu-dominio.com', 'ip-de-tu-servidor']
+- CORS_ALLOWED_ORIGINS = ['https://tu-dominio.com']
+
+2. SEGURIDAD ADICIONAL (Frontend y Tokens)
+---------------------------------------------------------
+- Asegúrate de que el frontend apunte a la URL de producción
+  del backend (por ejemplo en `ApolloProvider` o `fetch`).
+- [Recomendado] Cambiar el almacenamiento del token JWT de 
+  `localStorage` a cookies HttpOnly, o al menos usar HTTPS
+  estricto para mitigar riesgos de robo de sesión por XSS.
+- Implementar validación `is_authenticated` en todas las
+  mutaciones sensibles de GraphQL.
+
+3. BASE DE DATOS
+---------------------------------------------------------
+- Si usas PostgreSQL, cambia las credenciales quemadas en
+  `settings.py` (usuario, contraseña) para que también se 
+  carguen desde el archivo `.env`.
+
+4. SERVIDOR WEB Y ARCHIVOS ESTÁTICOS
+---------------------------------------------------------
+- Ejecuta `python manage.py collectstatic` para agrupar 
+  los archivos estáticos.
+- Sirve la aplicación con `gunicorn` o `uWSGI` detrás de 
+  un proxy inverso como `Nginx` o `Apache`.
+- ¡Obligatorio! Configura certificados SSL (HTTPS) con 
+  Let's Encrypt para cifrar todo el tráfico.

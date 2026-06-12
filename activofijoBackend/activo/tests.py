@@ -246,7 +246,14 @@ class AuthenticationRBACTestCase(TestCase):
                 }
             }
         '''
-        result = schema.execute(query)
+        class DummyContext:
+            COOKIES = {}
+            META = {}
+            def __init__(self):
+                self.jwt_cookie_to_set = None
+
+        context = DummyContext()
+        result = schema.execute(query, context_value=context)
         self.assertIsNone(result.errors)
         self.assertIsNotNone(result.data['tokenAuth']['token'])
         self.assertFalse(result.data['tokenAuth']['requires2fa'])
@@ -325,6 +332,7 @@ class AuthenticationRBACTestCase(TestCase):
             def __init__(self, headers):
                 self.headers = headers
                 self.META = {}
+                self.COOKIES = {'jwt_token': token}
 
         class MockInfo:
             def __init__(self, request):

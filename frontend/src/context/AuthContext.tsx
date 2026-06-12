@@ -25,24 +25,29 @@ const AuthContext = createContext<AuthContextType>({
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(() => {
-    const token = localStorage.getItem('token');
     const email = localStorage.getItem('userEmail') || '';
     const permisos = JSON.parse(localStorage.getItem('permisos') || '[]');
     const esAdmin = localStorage.getItem('esAdmin') === 'true';
-    if (token) return { token, email, permisos, esAdmin };
+    if (email) return { token: '', email, permisos, esAdmin };
     return null;
   });
 
   const login = useCallback((token: string, email: string, permisos: string[] = [], esAdmin = false) => {
-    localStorage.setItem('token', token);
     localStorage.setItem('userEmail', email);
     localStorage.setItem('permisos', JSON.stringify(permisos));
     localStorage.setItem('esAdmin', String(esAdmin));
-    setUser({ token, email, permisos, esAdmin });
+    setUser({ token: '', email, permisos, esAdmin });
   }, []);
 
   const logout = useCallback(() => {
-    localStorage.removeItem('token');
+    // Llamar al backend para eliminar la cookie
+    fetch('http://localhost:8000/graphql/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ query: 'mutation { logout { success } }' })
+    }).catch(console.error);
+
     localStorage.removeItem('userEmail');
     localStorage.removeItem('permisos');
     localStorage.removeItem('esAdmin');

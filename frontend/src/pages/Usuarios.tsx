@@ -496,7 +496,6 @@ export default function Usuarios() {
   const toggleExpandModule = (modId: string) => {
     setExpandedModules(prev => ({ ...prev, [modId]: !prev[modId] }));
   };
-
   // Helpers to check if user's employee is active responsible
   const getResponsableStatus = (idEmpleado: number) => {
     if (!data?.todosResponsables) return null;
@@ -505,7 +504,6 @@ export default function Usuarios() {
     );
   };
 
-  if (loading) return <div className="loading">Cargando personal, usuarios y permisos...</div>;
   if (error) return <div className="error">Error: {error.message}</div>;
 
   return (
@@ -538,7 +536,19 @@ export default function Usuarios() {
               </tr>
             </thead>
             <tbody>
-              {data?.todosUsuarios?.map((u: any) => {
+              {loading ? (
+                Array.from({ length: 5 }).map((_, idx) => (
+                  <tr key={idx} className="animate-pulse">
+                    <td><div className="h-4 bg-gray-200 rounded w-8"></div></td>
+                    <td><div className="h-4 bg-gray-200 rounded w-40"></div></td>
+                    <td><div className="h-4 bg-gray-200 rounded w-36"></div></td>
+                    <td><div className="h-4 bg-gray-200 rounded w-24"></div></td>
+                    <td><div className="h-4 bg-gray-200 rounded w-32"></div></td>
+                    <td><div className="h-6 bg-gray-200 rounded w-16"></div></td>
+                    <td><div className="h-8 bg-gray-200 rounded w-20"></div></td>
+                  </tr>
+                ))
+              ) : data?.todosUsuarios?.map((u: any) => {
                 const isMe = u.correo === currentUserEmail;
                 const respObj = getResponsableStatus(u.idEmpleado?.idEmpleado);
                 const isSelected = usuarioSeleccionado?.idUsuario === u.idUsuario;
@@ -1222,7 +1232,10 @@ export default function Usuarios() {
               </div>
 
               <div className="form-group">
-                <label>Procedencia (CI)</label>
+                <label>
+                  Procedencia (CI)
+                  <span className="text-blue-500 cursor-help ml-1" title="Lugar de emisión de la Cédula de Identidad (ej. LP para La Paz).">🛈</span>
+                </label>
                 <select
                   value={formUsr.procedencia}
                   onChange={e => setFormUsr({ ...formUsr, procedencia: e.target.value })}
@@ -1292,12 +1305,16 @@ export default function Usuarios() {
                 />
                 <label htmlFor="chkResp" style={{ cursor: 'pointer', margin: 0 }}>
                   <strong>¿Asignar inmediatamente como Responsable de Programa?</strong>
+                  <span className="text-blue-500 cursor-help ml-1" title="Si se marca, el empleado se registrará automáticamente como responsable de un programa presupuestario para recibir activos.">🛈</span>
                 </label>
               </div>
 
               {formUsr.hacerResponsable && (
                 <div className="form-group form-group-full" style={{ padding: '0.75rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                  <label>Código de Programa (Estudio Programático) *</label>
+                  <label>
+                    Código de Programa (Estudio Programático) *
+                    <span className="text-blue-500 cursor-help ml-1" title="Código numérico del programa presupuestario al que se asocia el responsable (ej. 1221).">🛈</span>
+                  </label>
                   <input
                     type="text"
                     placeholder="Ej. 1221"
@@ -1333,7 +1350,10 @@ export default function Usuarios() {
             </p>
 
             <div className="form-group">
-              <label>Código de Programa (Estudio Programático) *</label>
+              <label>
+                Código de Programa (Estudio Programático) *
+                <span className="text-blue-500 cursor-help ml-1" title="Código numérico del programa presupuestario al que se asocia el responsable (ej. 1221).">🛈</span>
+              </label>
               <input
                 type="text"
                 placeholder="Ej. 1221"

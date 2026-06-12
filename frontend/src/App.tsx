@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Sidebar from './components/layout/Sidebar';
 import Topbar from './components/layout/Topbar';
+import ToastContainer from './components/ui/ToastContainer';
+import './utils/toast';
 
 // Pages
 import Ingresos from './pages/Ingresos';
@@ -175,6 +177,9 @@ function AppInner() {
             <Route path="/logs"          element={<ProtectedRoute element={<Logs />} requiredPermission="ver_auditoria" />} />
             <Route path="/atributos"     element={<ProtectedRoute element={<Atributos />} requiredPermission="ver_atributos" />} />
             <Route path="/ufvs"          element={<ProtectedRoute element={<Ufvs />} requiredPermission="ver_tipo_cambio" />} />
+            
+            {/* Fallback route for unknown paths or successful logins originating from /login */}
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </main>
       </div>
@@ -188,6 +193,7 @@ function App() {
     <AuthProvider>
       <BrowserRouter>
         <AppInner />
+        <ToastContainer />
       </BrowserRouter>
     </AuthProvider>
   );

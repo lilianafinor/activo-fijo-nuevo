@@ -1,5 +1,5 @@
 import PageLayout from '../components/ui/PageLayout';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
 import { GET_OFICINAS } from '../graphql/queries';
 import { CREAR_OFIC, ELIMINAR_OFIC } from '../graphql/mutations';
@@ -17,6 +17,91 @@ const buildTree = (oficinas: any[]) => {
     }
   });
   return roots;
+};
+
+const getSugerenciaCodigo = (oficinas: any[], nivel: number, codPadreId: number | null) => {
+  if (nivel > 1 && !codPadreId) return ''; // No sugerir si falta padre
+
+  const hermanas = oficinas.filter(o => 
+    o.nivel === nivel && (codPadreId ? String(o.codPadre?.codOfic) === String(codPadreId) : !o.codPadre)
+  );
+  const codigosOcupados = new Set(hermanas.map(o => o.codDpto?.toUpperCase()));
+
+  let secuencia: string[] = [];
+  if (nivel === 1 || nivel === 3) {
+    for (let i = 1; i <= 9; i++) secuencia.push(i.toString());
+    for (let i = 65; i <= 90; i++) secuencia.push(String.fromCharCode(i));
+  } else if (nivel === 2) {
+    for (let i = 1; i <= 99; i++) secuencia.push(i.toString().padStart(2, '0'));
+    secuencia.push('00'); // Por si acaso se usa como caso especial
+    for (let i = 65; i <= 90; i++) {
+      for (let j = 65; j <= 90; j++) {
+        secuencia.push(String.fromCharCode(i) + String.fromCharCode(j));
+      }
+    }
+  }
+
+  for (const cod of secuencia) {
+    if (!codigosOcupados.has(cod)) {
+      return cod;
+    }
+  }
+  return '';
+};
+
+// Componente para búsqueda con autocompletado
+const SearchableSelect = ({ options, value, onChange, placeholder }: any) => {
+  const [search, setSearch] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    const selected = options.find((o: any) => String(o.value) === String(value));
+    if (selected) setSearch(`[${selected.code}] ${selected.label}`);
+    else setSearch('');
+  }, [value, options]);
+
+  const filtered = options.filter((o: any) => 
+    o.label.toLowerCase().includes(search.toLowerCase()) || 
+    o.code?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div style={{ position: 'relative', width: '100%' }}>
+      <input 
+        type="text" 
+        value={search} 
+        placeholder={placeholder}
+        onChange={e => {
+          setSearch(e.target.value);
+          setIsOpen(true);
+          onChange(''); // Limpiar valor seleccionado al escribir
+        }}
+        onFocus={() => setIsOpen(true)}
+        onBlur={() => setTimeout(() => setIsOpen(false), 200)}
+        style={{ width: '100%', padding: '0.5rem', border: '1px solid #ccc', borderRadius: '4px' }}
+      />
+      {isOpen && (
+        <ul style={{ position: 'absolute', top: '100%', left: 0, right: 0, maxHeight: 200, overflowY: 'auto', background: 'white', border: '1px solid #ccc', zIndex: 100, listStyle: 'none', padding: 0, margin: 0, borderRadius: '4px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+          {filtered.map((o: any) => (
+            <li 
+              key={o.value} 
+              style={{ padding: '10px', cursor: 'pointer', borderBottom: '1px solid #eee' }}
+              onMouseDown={() => {
+                onChange(o.value);
+                setSearch(`[${o.code}] ${o.label}`);
+                setIsOpen(false);
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f0f4ff')}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'white')}
+            >
+              <strong>[{o.code}]</strong> {o.label}
+            </li>
+          ))}
+          {filtered.length === 0 && <li style={{ padding: '10px', color: '#999' }}>No se encontraron coincidencias</li>}
+        </ul>
+      )}
+    </div>
+  );
 };
 
 const nivelNombre: Record<number, string> = {
@@ -68,6 +153,16 @@ export default function Oficinas() {
   const [crearOfic] = useMutation(CREAR_OFIC);
   const [eliminarOfic] = useMutation(ELIMINAR_OFIC);
 
+  useEffect(() => {
+    if (showModal && data?.todasOficinas) {
+      const nivelInt = parseInt(form.nivel);
+      const padreInt = form.codPadre ? parseInt(form.codPadre) : null;
+      const sugerencia = getSugerenciaCodigo(data.todasOficinas, nivelInt, padreInt);
+      
+      setForm(prev => ({ ...prev, codDpto: sugerencia }));
+    }
+  }, [form.nivel, form.codPadre, showModal, data]);
+
   const handleSubmit = async () => {
     if (!form.codDpto || !form.desDpto) { alert('Complete los campos obligatorios'); return; }
     try {
@@ -92,6 +187,13 @@ export default function Oficinas() {
 
   if (loading) return <div className="loading">Cargando oficinas...</div>;
   if (error) return <div className="error">Error: {error.message}</div>;
+
+  const getParentOptions = () => {
+    if (!data?.todasOficinas) return [];
+    return data.todasOficinas
+      .filter((o: any) => o.nivel === parseInt(form.nivel) - 1)
+      .map((o: any) => ({ value: o.codOfic, label: o.desDpto, code: o.codDpto }));
+  };
 
   return (
     <PageLayout
@@ -155,12 +257,12 @@ export default function Oficinas() {
               {parseInt(form.nivel) > 1 && (
                 <div className="form-group form-group-full">
                   <label>Oficina Padre *</label>
-                  <select value={form.codPadre} onChange={e => setForm({...form, codPadre: e.target.value})}>
-                    <option value="">Seleccionar...</option>
-                    {data?.todasOficinas?.filter((o: any) => o.nivel === parseInt(form.nivel) - 1).map((o: any) => (
-                      <option key={o.codOfic} value={o.codOfic}>{o.desDpto}</option>
-                    ))}
-                  </select>
+                  <SearchableSelect 
+                    options={getParentOptions()}
+                    value={form.codPadre}
+                    onChange={(val: string) => setForm({...form, codPadre: val})}
+                    placeholder="Buscar por código o nombre..."
+                  />
                 </div>
               )}
               <div className="form-group">

@@ -1,5 +1,5 @@
 import PageLayout from '../components/ui/PageLayout';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
 import { GET_GRUPOS } from '../graphql/queries';
 import { CREAR_GRUPO, EDITAR_GRUPO, ELIMINAR_GRUPO } from '../graphql/mutations';
@@ -18,6 +18,91 @@ const buildTree = (grupos: any[]) => {
     }
   });
   return roots;
+};
+
+const getSugerenciaCodigo = (grupos: any[], nivel: number, codPadreId: number | null) => {
+  if (nivel > 1 && !codPadreId) return ''; // No sugerir si falta padre
+
+  const hermanas = grupos.filter(g => 
+    g.nivel === nivel && (codPadreId ? String(g.codPadre?.codGrupo) === String(codPadreId) : !g.codPadre)
+  );
+  const codigosOcupados = new Set(hermanas.map(g => g.codHijo?.toUpperCase()));
+
+  let secuencia: string[] = [];
+  if (nivel === 1 || nivel === 3) {
+    for (let i = 1; i <= 9; i++) secuencia.push(i.toString());
+    for (let i = 65; i <= 90; i++) secuencia.push(String.fromCharCode(i));
+  } else if (nivel === 2) {
+    for (let i = 1; i <= 99; i++) secuencia.push(i.toString().padStart(2, '0'));
+    secuencia.push('00'); // Por si acaso se usa como caso especial
+    for (let i = 65; i <= 90; i++) {
+      for (let j = 65; j <= 90; j++) {
+        secuencia.push(String.fromCharCode(i) + String.fromCharCode(j));
+      }
+    }
+  }
+
+  for (const cod of secuencia) {
+    if (!codigosOcupados.has(cod)) {
+      return cod;
+    }
+  }
+  return '';
+};
+
+// Componente para búsqueda con autocompletado
+const SearchableSelect = ({ options, value, onChange, placeholder }: any) => {
+  const [search, setSearch] = useState('');
+  const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    const selected = options.find((o: any) => String(o.value) === String(value));
+    if (selected) setSearch(`[${selected.code}] ${selected.label}`);
+    else setSearch('');
+  }, [value, options]);
+
+  const filtered = options.filter((o: any) => 
+    o.label.toLowerCase().includes(search.toLowerCase()) || 
+    o.code?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div style={{ position: 'relative', width: '100%' }}>
+      <input 
+        type="text" 
+        value={search} 
+        placeholder={placeholder}
+        onChange={e => {
+          setSearch(e.target.value);
+          setIsOpen(true);
+          onChange(''); // Limpiar valor seleccionado al escribir
+        }}
+        onFocus={() => setIsOpen(true)}
+        onBlur={() => setTimeout(() => setIsOpen(false), 200)}
+        style={{ width: '100%', padding: '0.5rem', border: '1px solid #ccc', borderRadius: '4px' }}
+      />
+      {isOpen && (
+        <ul style={{ position: 'absolute', top: '100%', left: 0, right: 0, maxHeight: 200, overflowY: 'auto', background: 'white', border: '1px solid #ccc', zIndex: 100, listStyle: 'none', padding: 0, margin: 0, borderRadius: '4px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
+          {filtered.map((o: any) => (
+            <li 
+              key={o.value} 
+              style={{ padding: '10px', cursor: 'pointer', borderBottom: '1px solid #eee' }}
+              onMouseDown={() => {
+                onChange(o.value);
+                setSearch(`[${o.code}] ${o.label}`);
+                setIsOpen(false);
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f0f4ff')}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'white')}
+            >
+              <strong>[{o.code}]</strong> {o.label}
+            </li>
+          ))}
+          {filtered.length === 0 && <li style={{ padding: '10px', color: '#999' }}>No se encontraron coincidencias</li>}
+        </ul>
+      )}
+    </div>
+  );
 };
 
 const nivelColores: Record<number, string> = {
@@ -93,9 +178,20 @@ export default function Grupos() {
   const [editarGrupo] = useMutation(EDITAR_GRUPO);
   const [eliminarGrupo] = useMutation(ELIMINAR_GRUPO);
 
+  useEffect(() => {
+    // Solo sugerir si NO estamos editando (es decir, creando uno nuevo)
+    if (showModal && !editId && data?.todosGrupos) {
+      const nivelInt = parseInt(form.nivel);
+      const padreInt = form.codPadre ? parseInt(form.codPadre) : null;
+      const sugerencia = getSugerenciaCodigo(data.todosGrupos, nivelInt, padreInt);
+      
+      setForm(prev => ({ ...prev, codHijo: sugerencia }));
+    }
+  }, [form.nivel, form.codPadre, showModal, editId, data]);
+
   const handleNivelAutomatico = (codPadreId: string) => {
     if (!codPadreId) { setForm(f => ({...f, codPadre: '', nivel: '1'})); return; }
-    const padre = data?.todosGrupos?.find((g: any) => g.codGrupo === parseInt(codPadreId));
+    const padre = data?.todosGrupos?.find((g: any) => String(g.codGrupo) === String(codPadreId));
     const nivelPadre = padre?.nivel || 1;
     setForm(f => ({...f, codPadre: codPadreId, nivel: String(Math.min(nivelPadre + 1, 3))}));
   };
@@ -165,6 +261,13 @@ export default function Grupos() {
 
   if (loading) return <div className="loading">Cargando grupos...</div>;
   if (error) return <div className="error">Error: {error.message}</div>;
+
+  const getParentOptions = () => {
+    if (!data?.todosGrupos) return [];
+    return data.todosGrupos
+      .filter((g: any) => g.nivel === parseInt(form.nivel) - 1)
+      .map((g: any) => ({ value: g.codGrupo, label: g.desGrupo || g.codHijo, code: g.codHijo }));
+  };
 
   return (
     <PageLayout
@@ -250,12 +353,12 @@ export default function Grupos() {
               {parseInt(form.nivel) > 1 && (
                 <div className="form-group form-group-full">
                   <label>Grupo Padre *</label>
-                  <select value={form.codPadre} onChange={e => handleNivelAutomatico(e.target.value)}>
-                    <option value="">Seleccionar grupo padre...</option>
-                    {data?.todosGrupos?.filter((g: any) => g.nivel === parseInt(form.nivel) - 1).map((g: any) => (
-                      <option key={g.codGrupo} value={g.codGrupo}>{g.desGrupo || g.codHijo}</option>
-                    ))}
-                  </select>
+                  <SearchableSelect 
+                    options={getParentOptions()}
+                    value={form.codPadre}
+                    onChange={(val: string) => handleNivelAutomatico(val)}
+                    placeholder="Buscar por código o nombre..."
+                  />
                 </div>
               )}
               <div className="form-group">
